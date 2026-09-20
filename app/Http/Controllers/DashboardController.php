@@ -46,16 +46,18 @@ class DashboardController extends Controller
 
         $students = $query->latest('id')->paginate(15)->withQueryString();
 
-        // Live Database Demographics Counts (Case-Insensitive for Male/Female)
+        // Bulletproof case-insensitive gender count matching text or numeric codes
         $maleCount = (clone $query)->where(function($q) {
-            $q->where('gender', 'LIKE', 'Male%')
+            $q->where('gender', '1')
+              ->orWhere('gender', 'LIKE', 'Male%')
               ->orWhere('gender', 'LIKE', 'male%')
               ->orWhere('gender', 'M')
               ->orWhere('gender', 'm');
         })->count();
 
         $femaleCount = (clone $query)->where(function($q) {
-            $q->where('gender', 'LIKE', 'Female%')
+            $q->where('gender', '2')
+              ->orWhere('gender', 'LIKE', 'Female%')
               ->orWhere('gender', 'LIKE', 'female%')
               ->orWhere('gender', 'F')
               ->orWhere('gender', 'f');

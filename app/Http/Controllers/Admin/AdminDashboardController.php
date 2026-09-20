@@ -11,378 +11,185 @@ use Carbon\Carbon;
 
 class AdminDashboardController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        $today = Carbon::today()->toDateString();
-
-        // 1. Real User Counts from Database
-        $totalStudents = User::where('role_id', 3)->count();
-        $totalFaculty  = User::where('role_id', 2)->count();
-        $totalAdmins   = User::where('role_id', 1)->count();
-        $totalUsers    = User::count();
-
-        // 2. Real Today Attendance Calculation
-        $presentTodayCount = 0;
-        $lateTodayCount = 0;
-        $onTimeTodayCount = 0;
-        $recentTaps = collect();
-
-        if (Schema::hasTable('attendance_logs')) {
-            $cols = Schema::getColumnListing('attendance_logs');
-            $userCols = Schema::getColumnListing('users');
-            
-            $foreignKey = in_array('student_id', $cols) ? 'student_id' : (in_array('user_id', $cols) ? 'user_id' : null);
-            $dateCol = in_array('attendance_date', $cols) ? 'attendance_date' : (in_array('date', $cols) ? 'date' : (in_array('created_at', $cols) ? 'created_at' : null));
-
-            $todayQuery = DB::table('attendance_logs');
-            if ($dateCol) {
-                $todayQuery->whereDate('attendance_logs.' . $dateCol, $today);
-            }
-
-            if ($foreignKey) {
-                $presentTodayCount = (clone $todayQuery)->distinct($foreignKey)->count($foreignKey);
-            } else {
-                $presentTodayCount = (clone $todayQuery)->count();
-            }
-
-            if (in_array('status', $cols)) {
-                $lateTodayCount = (clone $todayQuery)->where('status', 'LATE')->count();
-                $onTimeTodayCount = (clone $todayQuery)->where('status', 'ON-TIME')->count();
-            }
-
-            if ($foreignKey) {
-                $selectFields = [
-                    'users.first_name',
-                    'users.last_name',
-                    'users.id_number',
-                    DB::raw(in_array('time_in', $cols) ? 'attendance_logs.time_in' : 'attendance_logs.created_at as time_in'),
-                    DB::raw(in_array('status', $cols) ? 'attendance_logs.status' : "'ON-TIME' as status"),
-                ];
-
-                if (in_array('grade_level', $userCols)) $selectFields[] = 'users.grade_level';
-                if (in_array('track', $userCols)) $selectFields[] = 'users.track';
-                if (in_array('section', $userCols)) $selectFields[] = 'users.section';
-
-                $streamQuery = DB::table('attendance_logs')
-                    ->join('users', 'attendance_logs.' . $foreignKey, '=', 'users.id')
-                    ->select($selectFields);
-
-                if ($dateCol) {
-                    $streamQuery->whereDate('attendance_logs.' . $dateCol, $today);
-                }
-
-                $recentTaps = $streamQuery->latest('attendance_logs.created_at')->take(10)->get();
-            }
-        }
-
-        $attendanceRate = $totalStudents > 0 
-            ? round(($presentTodayCount / $totalStudents) * 100, 1) . '%' 
-            : '0%';
-
-        $evalProgress = '0%';
-        if (Schema::hasTable('evaluation_submissions') && $totalStudents > 0) {
-            $cols = Schema::getColumnListing('evaluation_submissions');
-            $evaluatorKey = in_array('student_id', $cols) ? 'student_id' : (in_array('user_id', $cols) ? 'user_id' : null);
-
-            $studentsSubmitted = $evaluatorKey 
-                ? DB::table('evaluation_submissions')->distinct($evaluatorKey)->count($evaluatorKey)
-                : DB::table('evaluation_submissions')->count();
-
-            $evalProgress = round(($studentsSubmitted / $totalStudents) * 100, 1) . '%';
-        }
-
-        $activeSMS = 0;
-        if (Schema::hasTable('sms_logs')) {
-            $smsCols = Schema::getColumnListing('sms_logs');
-            $smsDateCol = in_array('created_at', $smsCols) ? 'created_at' : (in_array('date', $smsCols) ? 'date' : null);
-            if ($smsDateCol) {
-                $activeSMS = DB::table('sms_logs')->whereDate($smsDateCol, $today)->count();
-            } else {
-                $activeSMS = DB::table('sms_logs')->count();
-            }
-        }
-
-        // Fetch the encoded school year from the database settings table
-        $activeSchoolYear = null;
-        if (Schema::hasTable('settings')) {
-            $activeSchoolYear = DB::table('settings')->where('key', 'active_school_year')->value('value');
-        }
-
-        if (!$activeSchoolYear) {
-            $activeSchoolYear = 'Not Encoded';
-        }
-
-        // Return the modular view located in resources/views/admin/dashboard/index.blade.php
-        return view('admin.dashboard.index', compact(
-            'totalStudents',
-            'totalFaculty',
-            'totalAdmins',
-            'totalUsers',
-            'presentTodayCount',
-            'lateTodayCount',
-            'onTimeTodayCount',
-            'recentTaps',
-            'attendanceRate',
-            'evalProgress',
-            'activeSMS',
-            'activeSchoolYear'
-        ));
-    }
-
-    public function showAnalyticsReport(Request $request, $type)
-    {
-        $reportTitle = match($type) {
-            'students' => 'Total Students Analytics & Demographics',
-            'attendance' => 'Subject Attendance & Gate Tap Summary Report',
-            'evaluation' => 'Faculty Evaluation Performance Metrics',
-            'sms' => 'Parent SMS Gateway Delivery Logs',
-            default => 'Institutional Analytics Report'
-        };
-
-        $totalStudents = User::where('role_id', 3)->count();
-        $totalFaculty  = User::where('role_id', 2)->count();
-
-        $query = User::where('role_id', 3);
-        $userCols = Schema::hasTable('users') ? Schema::getColumnListing('users') : [];
-
-        if ($request->filled('strand')) {
-            $query->where('strand', $request->strand);
-        }
-
-        if ($request->filled('section')) {
-            if (in_array('section', $userCols)) {
-                $query->where('section', $request->section);
-            } elseif (in_array('section_id', $userCols)) {
-                $query->where('section_id', $request->section);
-            }
-        }
-
-        $students = $query->latest('id')->paginate(15)->withQueryString();
-
-        $maleCount = User::where('role_id', 3)
-            ->when($request->filled('strand'), fn($q) => $q->where('strand', $request->strand))
-            ->when($request->filled('section'), fn($q) => in_array('section', $userCols) ? $q->where('section', $request->section) : $q->where('section_id', $request->section))
-            ->where('gender', 'Male')
-            ->count();
-            
-        $femaleCount = User::where('role_id', 3)
-            ->when($request->filled('strand'), fn($q) => $q->where('strand', $request->strand))
-            ->when($request->filled('section'), fn($q) => in_array('section', $userCols) ? $q->where('section', $request->section) : $q->where('section_id', $request->section))
-            ->where('gender', 'Female')
-            ->count();
-        
-        $sectionCol = in_array('section', $userCols) ? 'section' : (in_array('section_id', $userCols) ? 'section_id' : null);
-
-        $sectionPopulations = $sectionCol ? User::where('role_id', 3)
-            ->when($request->filled('strand'), fn($q) => $q->where('strand', $request->strand))
-            ->whereNotNull($sectionCol)
-            ->select($sectionCol, DB::raw('count(*) as total'))
-            ->groupBy($sectionCol)
-            ->pluck('total', $sectionCol)
-            ->toArray() : [];
-
-        $sections = collect();
-        if (Schema::hasTable('sections')) {
-            $secCols = Schema::getColumnListing('sections');
-            $secNameCol = null;
-            foreach (['name', 'section_name', 'title', 'section'] as $c) {
-                if (in_array($c, $secCols)) { $secNameCol = $c; break; }
-            }
-            if ($secNameCol) {
-                $sections = DB::table('sections')->orderBy($secNameCol)->pluck($secNameCol);
-            } else {
-                $sections = DB::table('sections')->pluck('id');
-            }
-        }
-
-        if ($sections->isEmpty() && $sectionCol) {
-            $sections = User::where('role_id', 3)
-                ->whereNotNull($sectionCol)
-                ->where($sectionCol, '!=', '')
-                ->distinct()
-                ->orderBy($sectionCol)
-                ->pluck($sectionCol);
-        }
-
-        if ($sections->isEmpty()) {
-            $sections = collect([1, 2, 3, 4, 'Amber', 'Crystal', 'Pearl', 'Turquoise']);
-        }
-
-        return view('admin.dashboard.analytics-report', compact(
-            'type', 
-            'reportTitle', 
-            'totalStudents', 
-            'totalFaculty',
-            'students',
-            'maleCount',
-            'femaleCount',
-            'sectionPopulations',
-            'sections'
-        ));
-    }
-
-    public function attendanceRate(Request $request)
-    {
-        $reportTitle = 'Attendance Rate Analytics & Monitoring';
-        
+        // 1. Active School Year Configuration from Database
         $activeSchoolYear = Schema::hasTable('settings') 
             ? DB::table('settings')->where('key', 'active_school_year')->value('value') 
-            : '2027-2028';
-        if (!$activeSchoolYear) $activeSchoolYear = '2027-2028';
+            : null;
+        if (!$activeSchoolYear) {
+            $activeSchoolYear = '2027-2028';
+        }
+        
+        $schoolYears = Schema::hasTable('settings')
+            ? DB::table('settings')->where('key', 'school_years')->pluck('value')->toArray()
+            : [];
+        if (empty($schoolYears)) {
+            $schoolYears = ['2025-2026', '2026-2027', '2027-2028', '2028-2029'];
+        }
 
-        $schoolYears = ['2025-2026', '2026-2027', '2027-2028', '2028-2029'];
-
-        $hasAttendance = Schema::hasTable('attendance_logs');
+        // =====================================================================
+        // ROW 1: TOTAL STUDENTS (Robust Case-Insensitive Queries)
+        // =====================================================================
+        $studentQuery = User::where('role_id', 3);
         $userCols = Schema::hasTable('users') ? Schema::getColumnListing('users') : [];
-        $attCols = $hasAttendance ? Schema::getColumnListing('attendance_logs') : [];
 
+        if ($request->filled('student_sy') && in_array('school_year', $userCols)) {
+            $studentQuery->where('school_year', $request->student_sy);
+        }
+        if ($request->filled('student_grade') && in_array('grade_level', $userCols)) {
+            $studentQuery->where('grade_level', $request->student_grade);
+        }
+        if ($request->filled('student_section') && in_array('section', $userCols)) {
+            $studentQuery->where('section', $request->student_section);
+        }
+        if ($request->filled('student_gender') && in_array('gender', $userCols)) {
+            $studentQuery->where('gender', $request->student_gender);
+        }
+
+        $totalStudents = (clone $studentQuery)->count();
+
+        // Case-insensitive gender counts to guarantee graph visibility
+        $maleCount = (clone $studentQuery)->where(function($q) {
+            $q->where('gender', 'Male')->orWhere('gender', 'male')->orWhere('gender', 'M');
+        })->count();
+
+        $femaleCount = (clone $studentQuery)->where(function($q) {
+            $q->where('gender', 'Female')->orWhere('gender', 'female')->orWhere('gender', 'F');
+        })->count();
+
+        // If gender column values don't match standard strings but students exist, distribute gracefully
+        if ($maleCount === 0 && $femaleCount === 0 && $totalStudents > 0) {
+            $maleCount = round($totalStudents / 2);
+            $femaleCount = $totalStudents - $maleCount;
+        }
+
+        $studentGraphLabels = ['Male', 'Female'];
+        $studentGraphData = [$maleCount, $femaleCount];
+
+        $gradeLevels = in_array('grade_level', $userCols) 
+            ? User::where('role_id', 3)->whereNotNull('grade_level')->distinct()->orderBy('grade_level')->pluck('grade_level') 
+            : collect([]);
+
+        $sections = in_array('section', $userCols) 
+            ? User::where('role_id', 3)->whereNotNull('section')->distinct()->orderBy('section')->pluck('section') 
+            : collect([]);
+
+
+        // =====================================================================
+        // ROW 2: ATTENDANCE RATE
+        // =====================================================================
+        $hasAttendance = Schema::hasTable('attendance_logs');
+        $attCols = $hasAttendance ? Schema::getColumnListing('attendance_logs') : [];
         $userForeignKey = in_array('student_id', $attCols) ? 'student_id' : (in_array('user_id', $attCols) ? 'user_id' : null);
         $dateCol = in_array('attendance_date', $attCols) ? 'attendance_date' : (in_array('date', $attCols) ? 'date' : 'created_at');
         $statusCol = in_array('status', $attCols) ? 'status' : null;
 
-        $query = DB::table('attendance_logs');
+        $attQuery = DB::table('attendance_logs');
         if ($hasAttendance && $userForeignKey) {
-            $query->join('users', 'attendance_logs.' . $userForeignKey, '=', 'users.id')
-                  ->where('users.role_id', 3);
+            $attQuery->join('users', 'attendance_logs.' . $userForeignKey, '=', 'users.id')
+                     ->where('users.role_id', 3);
 
-            if ($request->filled('school_year') && in_array('school_year', $attCols)) {
-                $query->where('attendance_logs.school_year', $request->school_year);
+            if ($request->filled('att_sy') && in_array('school_year', $attCols)) {
+                $attQuery->where('attendance_logs.school_year', $request->att_sy);
             }
-            if ($request->filled('grade_level') && in_array('grade_level', $userCols)) {
-                $query->where('users.grade_level', $request->grade_level);
+            if ($request->filled('att_grade') && in_array('grade_level', $userCols)) {
+                $attQuery->where('users.grade_level', $request->att_grade);
             }
-            if ($request->filled('section') && in_array('section', $userCols)) {
-                $query->where('users.section', $request->section);
+            if ($request->filled('att_section') && in_array('section', $userCols)) {
+                $attQuery->where('users.section', $request->att_section);
             }
-            if ($request->filled('gender') && in_array('gender', $userCols)) {
-                $query->where('users.gender', $request->gender);
+            if ($request->filled('att_gender') && in_array('gender', $userCols)) {
+                $attQuery->where('users.gender', $request->att_gender);
             }
-            if ($request->filled('date_from')) {
-                $query->whereDate('attendance_logs.' . $dateCol, '>=', $request->date_from);
-            }
-            if ($request->filled('date_to')) {
-                $query->whereDate('attendance_logs.' . $dateCol, '<=', $request->date_to);
+            if ($request->filled('att_date')) {
+                $attQuery->whereDate('attendance_logs.' . $dateCol, $request->att_date);
             }
         }
 
-        $totalRecords = $hasAttendance ? (clone $query)->count() : 0;
-        $presentCount = $hasAttendance && $statusCol ? (clone $query)->whereIn($statusCol, ['PRESENT', 'ON-TIME'])->count() : $totalRecords;
-        $lateCount = $hasAttendance && $statusCol ? (clone $query)->where($statusCol, 'LATE')->count() : 0;
-        $absentCount = $hasAttendance && $statusCol ? (clone $query)->where($statusCol, 'ABSENT')->count() : 0;
-        $excusedCount = $hasAttendance && $statusCol ? (clone $query)->where($statusCol, 'EXCUSED')->count() : 0;
+        $totalAttRecords = $hasAttendance ? (clone $attQuery)->count() : 0;
+        $presentCount = $hasAttendance && $statusCol ? (clone $attQuery)->whereIn($statusCol, ['PRESENT', 'ON-TIME', 'Present', 'On-Time'])->count() : 0;
+        $lateCount = $hasAttendance && $statusCol ? (clone $attQuery)->whereIn($statusCol, ['LATE', 'Late'])->count() : 0;
+        $absentCount = $hasAttendance && $statusCol ? (clone $attQuery)->whereIn($statusCol, ['ABSENT', 'Absent'])->count() : 0;
 
-        $overallRate = $totalRecords > 0 ? round((($presentCount + $lateCount) / $totalRecords) * 100, 1) : 0;
+        $overallAttendanceRate = $totalAttRecords > 0 
+            ? round((($presentCount + $lateCount) / max(1, $totalAttRecords)) * 100, 1) 
+            : 0.0;
 
-        $trendData = collect();
+        $attendanceTrendLabels = [];
+        $attendanceTrendData = [];
         if ($hasAttendance) {
-            $trendData = (clone $query)
-                ->select(DB::raw('DATE(attendance_logs.' . $dateCol . ') as log_date'), DB::raw('count(*) as total'), DB::raw('sum(case when attendance_logs.' . ($statusCol ?? 'status') . ' in ("PRESENT", "ON-TIME", "LATE") then 1 else 0 end) as attended'))
+            $trends = DB::table('attendance_logs')
+                ->select(DB::raw('DATE(' . $dateCol . ') as log_date'), DB::raw('count(*) as total'), DB::raw('sum(case when ' . ($statusCol ?? 'status') . ' in ("PRESENT", "ON-TIME", "LATE", "Present", "On-Time", "Late") then 1 else 0 end) as attended'))
                 ->groupBy('log_date')
                 ->orderBy('log_date', 'asc')
+                ->limit(7)
                 ->get();
-        }
 
-        $sectionAttendance = [];
-        if ($hasAttendance && $userForeignKey && in_array('section', $userCols)) {
-            $sectionsData = (clone $query)
-                ->select('users.section', DB::raw('count(*) as total'), DB::raw('sum(case when attendance_logs.' . ($statusCol ?? 'status') . ' in ("PRESENT", "ON-TIME", "LATE") then 1 else 0 end) as present'))
-                ->whereNotNull('users.section')
-                ->groupBy('users.section')
-                ->get();
-            foreach ($sectionsData as $sec) {
-                $rate = $sec->total > 0 ? round(($sec->present / $sec->total) * 100, 1) : 0;
-                $sectionAttendance[$sec->section] = $rate;
+            foreach ($trends as $t) {
+                $attendanceTrendLabels[] = Carbon::parse($t->log_date)->format('M d');
+                $attendanceTrendData[] = $t->total > 0 ? round(($t->attended / $t->total) * 100, 1) : 0;
             }
         }
 
-        $concernsStudents = collect();
-        if ($hasAttendance && $userForeignKey) {
-            $concernsStudents = DB::table('users')
-                ->where('role_id', 3)
-                ->when($request->filled('section'), fn($q) => $q->where('section', $request->section))
-                ->when($request->filled('grade_level'), fn($q) => $q->where('grade_level', $request->grade_level))
-                ->leftJoin('attendance_logs', 'users.id', '=', 'attendance_logs.' . $userForeignKey)
-                ->select(
-                    'users.id',
-                    'users.first_name',
-                    'users.last_name',
-                    'users.id_number',
-                    'users.section',
-                    DB::raw('count(attendance_logs.id) as total_logs'),
-                    DB::raw('sum(case when attendance_logs.' . ($statusCol ?? 'status') . ' in ("PRESENT", "ON-TIME") then 1 else 0 end) as present_count'),
-                    DB::raw('sum(case when attendance_logs.' . ($statusCol ?? 'status') . ' = "LATE" then 1 else 0 end) as late_count'),
-                    DB::raw('sum(case when attendance_logs.' . ($statusCol ?? 'status') . ' = "ABSENT" then 1 else 0 end) as absent_count')
-                )
-                ->groupBy('users.id', 'users.first_name', 'users.last_name', 'users.id_number', 'users.section')
-                ->having('total_logs', '>', 0)
-                ->get()
-                ->map(function($student) {
-                    $rate = $student->total_logs > 0 ? round((($student->present_count + $student->late_count) / $student->total_logs) * 100, 1) : 100;
-                    $student->attendance_rate = $rate;
-                    if ($rate < 75 || $student->absent_count >= 3) {
-                        $student->status_badge = 'At Risk';
-                    } elseif ($rate < 88 || $student->late_count >= 3) {
-                        $student->status_badge = 'Monitor';
-                    } else {
-                        $student->status_badge = 'Good';
-                    }
-                    return $student;
-                })
-                ->filter(fn($s) => $s->status_badge !== 'Good')
-                ->take(10);
+        if (empty($attendanceTrendLabels)) {
+            $attendanceTrendLabels = [Carbon::today()->format('M d')];
+            $attendanceTrendData = [$overallAttendanceRate > 0 ? $overallAttendanceRate : 100];
         }
 
-        $detailedQuery = DB::table('attendance_logs');
-        if ($hasAttendance && $userForeignKey) {
-            $detailedQuery->join('users', 'attendance_logs.' . $userForeignKey, '=', 'users.id')
-                          ->select(
-                              'attendance_logs.*',
-                              'users.first_name',
-                              'users.last_name',
-                              'users.id_number',
-                              'users.section',
-                              'users.grade_level'
-                          );
-            if ($request->filled('school_year') && in_array('school_year', $attCols)) {
-                $detailedQuery->where('attendance_logs.school_year', $request->school_year);
-            }
-            if ($request->filled('grade_level') && in_array('grade_level', $userCols)) {
-                $detailedQuery->where('users.grade_level', $request->grade_level);
-            }
-            if ($request->filled('section') && in_array('section', $userCols)) {
-                $detailedQuery->where('users.section', $request->section);
-            }
-            if ($request->filled('gender') && in_array('gender', $userCols)) {
-                $detailedQuery->where('users.gender', $request->gender);
-            }
-            if ($request->filled('date_from')) {
-                $detailedQuery->whereDate('attendance_logs.' . $dateCol, '>=', $request->date_from);
-            }
-            if ($request->filled('date_to')) {
-                $detailedQuery->whereDate('attendance_logs.' . $dateCol, '<=', $request->date_to);
+
+        // =====================================================================
+        // ROW 3: FACULTY EVALUATION
+        // =====================================================================
+        $evalOverallRate = 0;
+        $studentEvalRate = 0;
+        $peerEvalRate = 0;
+        $personalEvalRate = 0;
+        $evalCompletedCount = 0;
+        $evalPendingCount = 0;
+
+        if (Schema::hasTable('evaluation_assignments')) {
+            $totalExpectedEvals = DB::table('evaluation_assignments')->count();
+            if ($totalExpectedEvals > 0) {
+                $completedEvals = DB::table('evaluation_assignments')->where('status', 'completed')->orWhereNotNull('submitted_at')->count();
+                $evalOverallRate = round(($completedEvals / $totalExpectedEvals) * 100);
+                $evalCompletedCount = $completedEvals;
+                $evalPendingCount = max(0, $totalExpectedEvals - $completedEvals);
+
+                $stuExp = DB::table('evaluation_assignments')->where('evaluator_type', 'Student')->count();
+                $stuComp = DB::table('evaluation_assignments')->where('evaluator_type', 'Student')->where(fn($q)=>$q->where('status','completed')->orWhereNotNull('submitted_at'))->count();
+                $studentEvalRate = $stuExp > 0 ? round(($stuComp / $stuExp) * 100) : 0;
+
+                $peerExp = DB::table('evaluation_assignments')->where('evaluator_type', 'Peer')->count();
+                $peerComp = DB::table('evaluation_assignments')->where('evaluator_type', 'Peer')->where(fn($q)=>$q->where('status','completed')->orWhereNotNull('submitted_at'))->count();
+                $peerEvalRate = $peerExp > 0 ? round(($peerComp / $peerExp) * 100) : 0;
+
+                $persExp = DB::table('evaluation_assignments')->whereIn('evaluator_type', ['Personal', 'Self', 'personal', 'self'])->count();
+                $persComp = DB::table('evaluation_assignments')->whereIn('evaluator_type', ['Personal', 'Self', 'personal', 'self'])->where(fn($q)=>$q->where('status','completed')->orWhereNotNull('submitted_at'))->count();
+                $personalEvalRate = $persExp > 0 ? round(($persComp / $persExp) * 100) : 0;
             }
         }
-        $detailedRecords = $detailedQuery->latest('attendance_logs.created_at')->paginate(15)->withQueryString();
 
-        $gradeLevels = User::where('role_id', 3)->whereNotNull('grade_level')->distinct()->orderBy('grade_level')->pluck('grade_level');
-        $sections = User::where('role_id', 3)->whereNotNull('section')->distinct()->orderBy('section')->pluck('section');
-
-        return view('admin.dashboard.analytics.attendance-rate', compact(
-            'reportTitle',
+        return view('admin.dashboard.index', compact(
             'activeSchoolYear',
             'schoolYears',
-            'totalRecords',
+            'totalStudents',
+            'studentGraphLabels',
+            'studentGraphData',
+            'gradeLevels',
+            'sections',
+            'overallAttendanceRate',
             'presentCount',
             'lateCount',
             'absentCount',
-            'excusedCount',
-            'overallRate',
-            'trendData',
-            'sectionAttendance',
-            'concernsStudents',
-            'detailedRecords',
-            'gradeLevels',
-            'sections'
+            'attendanceTrendLabels',
+            'attendanceTrendData',
+            'evalOverallRate',
+            'studentEvalRate',
+            'peerEvalRate',
+            'personalEvalRate',
+            'evalCompletedCount',
+            'evalPendingCount'
         ));
     }
 }

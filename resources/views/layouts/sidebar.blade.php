@@ -84,10 +84,10 @@
                     <p class="px-3 text-[10px] font-black uppercase tracking-wider text-red-200/60 mb-2" x-show="!collapsed">Modules & Setup</p>
                     <div class="space-y-1 text-sm font-bold">
                         
-                        <!-- Attendance Monitoring with Sub-items -->
+                        <!-- Attendance Monitoring with Sub-items (Fixed highlighting scope) -->
                         <div x-data="{ open: {{ request()->routeIs('admin.attendance.live', 'admin.attendance.override') ? 'true' : 'false' }} }" class="space-y-1">
                             <button @click="open = !open" 
-                                class="w-full group flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-bold transition duration-150 {{ request()->routeIs('admin.attendance*') ? 'bg-red-900/80 text-amber-300' : 'text-white hover:bg-red-900/50 hover:text-amber-200' }}">
+                                class="w-full group flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-bold transition duration-150 {{ request()->routeIs('admin.attendance.live', 'admin.attendance.override') ? 'bg-red-900/80 text-amber-300' : 'text-white hover:bg-red-900/50 hover:text-amber-200' }}">
                                 <div class="flex items-center gap-3.5">
                                     <i class="fa-solid fa-id-card-clip text-base {{ request()->routeIs('admin.attendance.live', 'admin.attendance.override') ? 'text-amber-300' : 'text-amber-300 group-hover:text-white' }}"></i>
                                     <span class="text-[13px]" x-show="!collapsed">Attendance Monitoring</span>
@@ -100,12 +100,12 @@
                             </div>
                         </div>
 
-                        <!-- Faculty Evaluation with Sub-items -->
-                        <div x-data="{ open: {{ request()->routeIs('admin.evaluations*') ? 'true' : 'false' }} }" class="space-y-1">
+                        <!-- Faculty Evaluation with Sub-items (Fixed highlighting scope) -->
+                        <div x-data="{ open: {{ request()->routeIs('admin.evaluations.periods', 'admin.evaluations.results') ? 'true' : 'false' }} }" class="space-y-1">
                             <button @click="open = !open" 
-                                class="w-full group flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-bold transition duration-150 {{ request()->routeIs('admin.evaluations*') ? 'bg-red-900/80 text-amber-300' : 'text-white hover:bg-red-900/50 hover:text-amber-200' }}">
+                                class="w-full group flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-bold transition duration-150 {{ request()->routeIs('admin.evaluations.periods', 'admin.evaluations.results') ? 'bg-red-900/80 text-amber-300' : 'text-white hover:bg-red-900/50 hover:text-amber-200' }}">
                                 <div class="flex items-center gap-3.5">
-                                    <i class="fa-solid fa-star-half-stroke text-base {{ request()->routeIs('admin.evaluations*') ? 'text-amber-300' : 'text-amber-300 group-hover:text-white' }}"></i>
+                                    <i class="fa-solid fa-star-half-stroke text-base {{ request()->routeIs('admin.evaluations.periods', 'admin.evaluations.results') ? 'text-amber-300' : 'text-amber-300 group-hover:text-white' }}"></i>
                                     <span class="text-[13px]" x-show="!collapsed">Faculty Evaluation</span>
                                 </div>
                                 <i class="fa-solid fa-chevron-down text-xs transition-transform duration-200" :class="open ? 'rotate-180' : ''" x-show="!collapsed"></i>
@@ -160,7 +160,7 @@
                     <p class="px-3 text-[10px] font-black uppercase tracking-wider text-red-200/60 mb-2" x-show="!collapsed">Faculty Portal</p>
                     <div class="space-y-1 text-sm font-bold">
                         
-                        <!-- Dashboard (Bago) -->
+                        <!-- Dashboard -->
                         <a href="{{ route('teacher.dashboard') }}" 
                            class="group flex items-center gap-3.5 px-3.5 py-2.5 rounded-xl transition duration-150 {{ request()->routeIs('teacher.dashboard*') ? 'bg-amber-400 text-amber-950 shadow-md' : 'text-white hover:bg-red-900/50 hover:text-amber-200' }}"
                            title="Dashboard">
@@ -168,7 +168,7 @@
                             <span class="text-[13px]" x-show="!collapsed">Dashboard</span>
                         </a>
 
-                        <!-- School Year and Sections (Bago) -->
+                        <!-- School Year and Sections -->
                         <a href="{{ route('teacher.school-years') }}" 
                            class="group flex items-center gap-3.5 px-3.5 py-2.5 rounded-xl transition duration-150 {{ request()->routeIs('teacher.school-years*') ? 'bg-amber-400 text-amber-950 shadow-md' : 'text-white hover:bg-red-900/50 hover:text-amber-200' }}"
                            title="School Year and Sections">
@@ -176,7 +176,7 @@
                             <span class="text-[13px]" x-show="!collapsed">School Year & Sections</span>
                         </a>
 
-                        <!-- Student (Bago) -->
+                        <!-- Student -->
                         <a href="{{ route('teacher.students') }}" 
                            class="group flex items-center gap-3.5 px-3.5 py-2.5 rounded-xl transition duration-150 {{ request()->routeIs('teacher.students*') ? 'bg-amber-400 text-amber-950 shadow-md' : 'text-white hover:bg-red-900/50 hover:text-amber-200' }}"
                            title="Student">
@@ -184,7 +184,7 @@
                             <span class="text-[13px]" x-show="!collapsed">Student</span>
                         </a>
 
-                        <!-- Message (Bago) -->
+                        <!-- Message -->
                         <a href="{{ route('teacher.messages') }}" 
                            class="group flex items-center gap-3.5 px-3.5 py-2.5 rounded-xl transition duration-150 {{ request()->routeIs('teacher.messages*') ? 'bg-amber-400 text-amber-950 shadow-md' : 'text-white hover:bg-red-900/50 hover:text-amber-200' }}"
                            title="Message">
@@ -192,15 +192,15 @@
                             <span class="text-[13px]" x-show="!collapsed">Message</span>
                         </a>
 
-                        <!-- Attendance (Dati na sa SIATRACK) -->
+                        <!-- Attendance -->
                         <a href="{{ route('teacher.attendance') }}" 
                            class="group flex items-center gap-3.5 px-3.5 py-2.5 rounded-xl transition duration-150 {{ request()->routeIs('teacher.attendance*') ? 'bg-amber-400 text-amber-950 shadow-md' : 'text-white hover:bg-red-900/50 hover:text-amber-200' }}"
                            title="Attendance">
                             <i class="fa-solid fa-clipboard-user text-base {{ request()->routeIs('teacher.attendance*') ? 'text-amber-950' : 'text-amber-300 group-hover:text-white' }}"></i>
                             <span class="text-[13px]" x-show="!collapsed">Attendance</span>
-                        </a>                        
+                        </a>                                        
                         
-                        <!-- Class Schedule (Dati na sa SIATRACK) -->
+                        <!-- Class Schedule -->
                         <a href="{{ route('teacher.schedules') }}" 
                            class="group flex items-center gap-3.5 px-3.5 py-2.5 rounded-xl transition duration-150 {{ request()->routeIs('teacher.schedules*') ? 'bg-amber-400 text-amber-950 shadow-md' : 'text-white hover:bg-red-900/50 hover:text-amber-200' }}"
                            title="Class Schedule">
@@ -208,7 +208,7 @@
                             <span class="text-[13px]" x-show="!collapsed">Class Schedule</span>
                         </a>
 
-                        <!-- Report (Bago) -->
+                        <!-- Report -->
                         <a href="{{ route('teacher.reports') }}" 
                            class="group flex items-center gap-3.5 px-3.5 py-2.5 rounded-xl transition duration-150 {{ request()->routeIs('teacher.reports*') ? 'bg-amber-400 text-amber-950 shadow-md' : 'text-white hover:bg-red-900/50 hover:text-amber-200' }}"
                            title="Report">
@@ -216,7 +216,7 @@
                             <span class="text-[13px]" x-show="!collapsed">Report</span>
                         </a>
 
-                        <!-- Faculty Evaluation (Dati na sa SIATRACK) -->
+                        <!-- Faculty Evaluation -->
                         <a href="{{ route('teacher.evaluations.index') }}" 
                            class="group flex items-center gap-3.5 px-3.5 py-2.5 rounded-xl transition duration-150 {{ request()->routeIs('teacher.evaluations*') ? 'bg-amber-400 text-amber-950 shadow-md' : 'text-white hover:bg-red-900/50 hover:text-amber-200' }}"
                            title="Faculty Evaluation">
@@ -224,7 +224,7 @@
                             <span class="text-[13px]" x-show="!collapsed">Faculty Evaluation</span>
                         </a>
 
-                        <!-- Manage Account (Bago) -->
+                        <!-- Manage Account -->
                         <a href="{{ route('profile.edit') }}" 
                            class="group flex items-center gap-3.5 px-3.5 py-2.5 rounded-xl transition duration-150 {{ request()->routeIs('profile.edit') ? 'bg-amber-400 text-amber-950 shadow-md' : 'text-white hover:bg-red-900/50 hover:text-amber-200' }}"
                            title="Manage Account">

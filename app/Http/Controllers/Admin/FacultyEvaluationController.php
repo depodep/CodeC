@@ -41,17 +41,17 @@ class FacultyEvaluationController extends Controller
         ];
 
         // 2. Fetch Filters from Request
-        $selectedType = $request->input('evaluator_type'); // student, peer, personal
+        $selectedType = $request->input('evaluator_type'); 
         $selectedDepartment = $request->input('department');
         $selectedStatus = $request->input('status');
-        $searchQuery = $request->input('search');
+        $searchQuery = trim($request->input('search', ''));
 
         // Departments from Users table
         $departments = Schema::hasTable('users') && Schema::hasColumn('users', 'department') 
             ? DB::table('users')->whereNotNull('department')->distinct()->pluck('department') 
             : collect(['Information Technology', 'Education', 'General Education']);
 
-        // Faculty list (assuming role_id 2 or role 'teacher'/'faculty')
+        // Faculty list (role_id 2 or role teacher/faculty)
         $facultyQuery = DB::table('users')->where(function($q) {
             $q->where('role_id', 2)->orWhere('role', 'teacher')->orWhere('role', 'faculty');
         });
@@ -62,12 +62,26 @@ class FacultyEvaluationController extends Controller
         $facultyList = $facultyQuery->select('id', 'first_name', 'last_name', 'id_number', 'department')->get();
 
         // 3. Database Queries for Evaluation Statistics
-        // Checking if an evaluations / evaluation_assignments table exists, otherwise gracefully querying users/evaluations table safely
         $hasEvalTable = Schema::hasTable('evaluations');
         $hasAssignmentsTable = Schema::hasTable('evaluation_assignments');
 
         // Calculate Totals dynamically from DB
-        if ($hasEvalTable) {
+        $totalExpected = 0;
+        $completedCount = 0;
+
+        if ($hasAssignmentsTable) {
+            $assignQuery = DB::table('evaluation_assignments');
+            if ($activePeriod) {
+                $assignQuery->where('evaluation_period', $activePeriod);
+            }
+            if ($activeSchoolYear) {
+                $assignQuery->where('school_year', $activeSchoolYear);
+            }
+            $totalExpected = $assignQuery->count();
+            $completedCount = (clone $assignQuery)->where(function($q) {
+                $q->where('status', 'completed')->orWhere('status', 'Completed')->orWhereNotNull('submitted_at');
+            })->count();
+        } elseif ($hasEvalTable) {
             $evalQuery = DB::table('evaluations');
             if ($activePeriod) {
                 $evalQuery->where('evaluation_period', $activePeriod);
@@ -75,81 +89,79 @@ class FacultyEvaluationController extends Controller
             if ($activeSchoolYear) {
                 $evalQuery->where('school_year', $activeSchoolYear);
             }
-
             $totalExpected = $evalQuery->count();
-            if ($totalExpected == 0) { $totalExpected = max(1, $facultyList->count() * 10); } // Fallback safety
-
             $completedCount = (clone $evalQuery)->where(function($q) {
-                $q->where('status', 'completed')->orWhereNotNull('submitted_at');
+                $q->where('status', 'completed')->orWhere('status', 'Completed')->orWhereNotNull('submitted_at');
             })->count();
-        } else {
-            // Fallback dynamic computation based on faculty count if evaluation table isn't populated yet
-            $totalExpected = max(1, $facultyList->count() * 20);
-            $completedCount = round($totalExpected * 0.78);
         }
 
         $notYetEvaluatedCount = max(0, $totalExpected - $completedCount);
         $overallRate = $totalExpected > 0 ? round(($completedCount / $totalExpected) * 100) : 0;
 
-        // Breakdown by Evaluator Type (Student, Peer, Personal / Self) calculated from DB or ratios
-        $studentExpected = round($totalExpected * 0.75);
-        $studentCompleted = round($completedCount * 0.77);
-        $peerExpected = round($totalExpected * 0.17);
-        $peerCompleted = round($completedCount * 0.16);
-        $personalExpected = max(1, $facultyList->count());
-        $personalCompleted = min($personalExpected, round($completedCount * 0.07));
-
+        // Breakdown by Evaluator Type from DB
         $typesData = [
-            'student' => [
-                'label' => 'Students',
-                'completed' => $studentCompleted,
-                'expected' => $studentExpected,
-                'percentage' => $studentExpected > 0 ? round(($studentCompleted / $studentExpected) * 100) : 0
-            ],
-            'peer' => [
-                'label' => 'Peers',
-                'completed' => $peerCompleted,
-                'expected' => $peerExpected,
-                'percentage' => $peerExpected > 0 ? round(($peerCompleted / $peerExpected) * 100) : 0
-            ],
-            'personal' => [
-                'label' => 'Personal / Self-Evaluation',
-                'completed' => $personalCompleted,
-                'expected' => $personalExpected,
-                'percentage' => $personalExpected > 0 ? round(($personalCompleted / $personalExpected) * 100) : 0
-            ]
+            'student' => ['label' => 'Students', 'completed' => 0, 'expected' => 0, 'percentage' => 0],
+            'peer' => ['label' => 'Peers', 'completed' => 0, 'expected' => 0, 'percentage' => 0],
+            'personal' => ['label' => 'Personal / Self-Evaluation', 'completed' => 0, 'expected' => 0, 'percentage' => 0]
         ];
+
+        if ($hasAssignmentsTable) {
+            foreach (['student' => ['Student', 'student'], 'peer' => ['Peer', 'peer'], 'personal' => ['Personal', 'self', 'Personal / Self-Evaluation']] as $key => $aliases) {
+                $typeQuery = DB::table('evaluation_assignments')->whereIn('evaluator_type', $aliases);
+                if ($activePeriod) $typeQuery->where('evaluation_period', $activePeriod);
+                if ($activeSchoolYear) $typeQuery->where('school_year', $activeSchoolYear);
+                
+                $exp = $typeQuery->count();
+                $comp = (clone $typeQuery)->where(fn($q) => $q->where('status', 'completed')->orWhere('status', 'Completed')->orWhereNotNull('submitted_at'))->count();
+                
+                $typesData[$key]['expected'] = $exp;
+                $typesData[$key]['completed'] = $comp;
+                $typesData[$key]['percentage'] = $exp > 0 ? round(($comp / $exp) * 100) : 0;
+            }
+        }
 
         // Status Breakdown percentages
         $statusBreakdown = [
             'completed' => $overallRate,
             'not_yet' => $totalExpected > 0 ? round(($notYetEvaluatedCount / $totalExpected) * 100) : 0,
-            'in_progress' => 5,
-            'overdue' => 2
+            'in_progress' => 0,
+            'overdue' => 0
         ];
 
-        // Trend Data computed from DB submission timestamps if available, or weekly distribution
+        // Trend Data (Real distribution or empty if no tracking dates)
         $trendData = [
-            ['week' => 'Week 1', 'rate' => max(10, round($overallRate * 0.4))],
-            ['week' => 'Week 2', 'rate' => max(20, round($overallRate * 0.65))],
-            ['week' => 'Week 3', 'rate' => max(30, round($overallRate * 0.85))],
+            ['week' => 'Week 1', 'rate' => 0],
+            ['week' => 'Week 2', 'rate' => 0],
+            ['week' => 'Week 3', 'rate' => 0],
             ['week' => 'Week 4', 'rate' => $overallRate],
         ];
 
-        // 4. Faculty Evaluation Summary Table (Real Faculty from DB)
-        $facultySummary = $facultyList->map(function($fac) {
-            $studentTotal = 40;
-            $studentDone = rand(25, 40);
-            $peerTotal = 10;
-            $peerDone = rand(6, 10);
-            $personalTotal = 1;
-            $personalDone = rand(0, 1);
-            
+        // 4. Faculty Evaluation Summary Table (Real Data from DB)
+        $facultySummary = $facultyList->map(function($fac) use ($hasAssignmentsTable, $activePeriod, $activeSchoolYear, $searchQuery) {
+            $studentTotal = 0; $studentDone = 0;
+            $peerTotal = 0; $peerDone = 0;
+            $personalTotal = 0; $personalDone = 0;
+
+            if ($hasAssignmentsTable) {
+                $facAssigns = DB::table('evaluation_assignments')->where('faculty_id', $fac->id);
+                if ($activePeriod) $facAssigns->where('evaluation_period', $activePeriod);
+                if ($activeSchoolYear) $facAssigns->where('school_year', $activeSchoolYear);
+
+                $studentTotal = (clone $facAssigns)->where('evaluator_type', 'Student')->count();
+                $studentDone = (clone $facAssigns)->where('evaluator_type', 'Student')->where(fn($q) => $q->where('status', 'completed')->orWhereNotNull('submitted_at'))->count();
+
+                $peerTotal = (clone $facAssigns)->where('evaluator_type', 'Peer')->count();
+                $peerDone = (clone $facAssigns)->where('evaluator_type', 'Peer')->where(fn($q) => $q->where('status', 'completed')->orWhereNotNull('submitted_at'))->count();
+
+                $personalTotal = (clone $facAssigns)->whereIn('evaluator_type', ['Personal', 'Self'])->count();
+                $personalDone = (clone $facAssigns)->whereIn('evaluator_type', ['Personal', 'Self'])->where(fn($q) => $q->where('status', 'completed')->orWhereNotNull('submitted_at'))->count();
+            }
+
             $facTotalExpected = $studentTotal + $peerTotal + $personalTotal;
             $facTotalDone = $studentDone + $peerDone + $personalDone;
-            $rate = round(($facTotalDone / $facTotalExpected) * 100);
+            $rate = $facTotalExpected > 0 ? round(($facTotalDone / $facTotalExpected) * 100) : 0;
 
-            if ($searchQuery) {
+            if (!empty($searchQuery)) {
                 if (!stripos($fac->first_name, $searchQuery) && !stripos($fac->last_name, $searchQuery) && !stripos($fac->id_number, $searchQuery)) {
                     return null;
                 }
@@ -164,7 +176,7 @@ class FacultyEvaluationController extends Controller
                 'peer_progress' => "{$peerDone}/{$peerTotal}",
                 'personal_progress' => "{$personalDone}/{$personalTotal}",
                 'overall_rate' => $rate,
-                'status' => $rate >= 100 ? 'Completed' : 'In Progress'
+                'status' => ($facTotalExpected > 0 && $facTotalDone >= $facTotalExpected) ? 'Completed' : 'In Progress'
             ];
         })->filter()->values();
 
@@ -176,30 +188,35 @@ class FacultyEvaluationController extends Controller
             })->values();
         }
 
-        // 5. Not Yet Evaluated Section (Real Pending Items)
+        // 5. Not Yet Evaluated Section (Real Pending Items from DB)
         $pendingEvaluations = collect();
-        foreach ($facultyList->take(5) as $fac) {
-            $pendingEvaluations->push((object)[
-                'evaluator' => 'Student Group (' . $fac->last_name . ')',
-                'evaluator_type' => 'Student',
-                'faculty' => $fac->first_name . ' ' . $fac->last_name,
-                'period' => $activePeriod,
-                'status' => 'Not Yet Evaluated'
-            ]);
-            $pendingEvaluations->push((object)[
-                'evaluator' => 'Peer Faculty Member',
-                'evaluator_type' => 'Peer',
-                'faculty' => $fac->first_name . ' ' . $fac->last_name,
-                'period' => $activePeriod,
-                'status' => 'Not Yet Evaluated'
-            ]);
-            $pendingEvaluations->push((object)[
-                'evaluator' => $fac->first_name . ' ' . $fac->last_name . ' (Self)',
-                'evaluator_type' => 'Personal / Self-Evaluation',
-                'faculty' => 'Self (' . $fac->first_name . ' ' . $fac->last_name . ')',
-                'period' => $activePeriod,
-                'status' => 'Not Yet Evaluated'
-            ]);
+        if ($hasAssignmentsTable) {
+            $pendingQuery = DB::table('evaluation_assignments')
+                ->where(fn($q) => $q->where('status', '!=', 'completed')->orWhereNull('submitted_at'));
+            if ($activePeriod) $pendingQuery->where('evaluation_period', $activePeriod);
+            if ($activeSchoolYear) $pendingQuery->where('school_year', $activeSchoolYear);
+
+            $pendingRecords = $pendingQuery->limit(20)->get();
+            foreach ($pendingRecords as $pend) {
+                $evaluatorName = 'Evaluator #' . ($pend->evaluator_id ?? 'Unknown');
+                if (Schema::hasTable('users') && $pend->evaluator_id) {
+                    $evUser = DB::table('users')->where('id', $pend->evaluator_id)->first();
+                    if ($evUser) {
+                        $evaluatorName = $evUser->first_name . ' ' . $evUser->last_name;
+                    }
+                }
+
+                $facUser = DB::table('users')->where('id', $pend->faculty_id)->first();
+                $facultyName = $facUser ? ($facUser->first_name . ' ' . $facUser->last_name) : 'Faculty Member';
+
+                $pendingEvaluations->push((object)[
+                    'evaluator' => $evaluatorName,
+                    'evaluator_type' => $pend->evaluator_type ?? 'Standard',
+                    'faculty' => $facultyName,
+                    'period' => $pend->evaluation_period ?? $activePeriod,
+                    'status' => 'Pending'
+                ]);
+            }
         }
 
         return view('admin.evaluations.monitoring', compact(

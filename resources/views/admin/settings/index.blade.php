@@ -19,20 +19,9 @@
     </div>
 
     <!-- Settings & Academic Setup Hub Grid -->
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 w-full">
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 w-full">
 
-        <!-- 1. General Settings -->
-        <a href="{{ route('admin.settings') }}" class="p-6 bg-white rounded-3xl border-2 border-slate-200 shadow-xs hover:border-[#590d0d] hover:shadow-md transition flex items-start gap-4 group block">
-            <div class="w-12 h-12 rounded-2xl bg-red-50 border-2 border-red-200 text-[#590d0d] flex items-center justify-center text-xl shrink-0 group-hover:scale-105 transition">
-                <i class="fa-solid fa-sliders"></i>
-            </div>
-            <div class="space-y-1 flex-1">
-                <h3 class="text-base font-black text-slate-900 group-hover:text-[#590d0d] transition">General Configurations</h3>
-                <p class="text-xs text-slate-500 font-semibold">Configure core system options, default behaviors, and institutional parameters.</p>
-            </div>
-        </a>
-
-        <!-- 2. School Year & Semesters -->
+        <!-- 1. School Year & Semesters -->
         <a href="{{ route('admin.school-year') }}" class="p-6 bg-white rounded-3xl border-2 border-slate-200 shadow-xs hover:border-amber-300 hover:shadow-md transition flex items-start gap-4 group block">
             <div class="w-12 h-12 rounded-2xl bg-amber-50 border-2 border-amber-200 text-amber-700 flex items-center justify-center text-xl shrink-0 group-hover:scale-105 transition">
                 <i class="fa-solid fa-calendar-days"></i>
@@ -43,7 +32,7 @@
             </div>
         </a>
 
-        <!-- 3. Section & Class Management -->
+        <!-- 2. Section & Class Management -->
         <a href="{{ route('admin.sections') }}" class="p-6 bg-white rounded-3xl border-2 border-slate-200 shadow-xs hover:border-blue-300 hover:shadow-md transition flex items-start gap-4 group block">
             <div class="w-12 h-12 rounded-2xl bg-blue-50 border-2 border-blue-200 text-blue-700 flex items-center justify-center text-xl shrink-0 group-hover:scale-105 transition">
                 <i class="fa-solid fa-layer-group"></i>
@@ -54,7 +43,7 @@
             </div>
         </a>
 
-        <!-- 4. Class Schedules & Rooms -->
+        <!-- 3. Class Schedules & Rooms -->
         <a href="{{ route('admin.schedules.index') }}" class="p-6 bg-white rounded-3xl border-2 border-slate-200 shadow-xs hover:border-emerald-300 hover:shadow-md transition flex items-start gap-4 group block">
             <div class="w-12 h-12 rounded-2xl bg-emerald-50 border-2 border-emerald-200 text-emerald-700 flex items-center justify-center text-xl shrink-0 group-hover:scale-105 transition">
                 <i class="fa-solid fa-clock"></i>
