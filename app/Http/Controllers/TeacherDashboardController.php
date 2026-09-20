@@ -59,7 +59,8 @@ class TeacherDashboardController extends Controller
         $schedules = $mySchedules; // Alias in case the view loops through $schedules
         return view('teacher.schedules', compact('teacher', 'mySchedules', 'schedules', 'search'));
     }
-// MAIN DASHBOARD METHOD (Real Data Only)
+
+    // MAIN DASHBOARD METHOD (Real Data Only)
     public function index()
     {
         $teacher = Auth::user();
@@ -79,7 +80,6 @@ class TeacherDashboardController extends Controller
                 if (in_array('day', $schedCols)) {
                     $today = now()->format('l'); // Halimbawa: 'Monday'
                     
-                    // Tinanggal natin ang orderBy('time_start') para hindi mag-error
                     $todaysClasses = ClassSchedule::where($teacherCol, $teacher->id)
                                         ->where('day', $today)
                                         ->get();
@@ -97,6 +97,7 @@ class TeacherDashboardController extends Controller
 
         return view('teacher.dashboard', compact('teacher', 'totalClasses', 'totalStudents', 'todaysClasses'));
     }
+
     // PROFILE UPDATE METHOD (Handles the Edit Faculty Profile modal)
     public function updateProfile(Request $request)
     {
@@ -166,7 +167,35 @@ class TeacherDashboardController extends Controller
 
         return view('teacher.students', compact('teacher', 'students'));
     }
-// MESSAGE INBOX METHOD (Real Data Only)
+// METHOD PARA SA PAG-ADD NG ESTUDYANTE
+    public function storeStudent(Request $request)
+    {
+        $request->validate([
+            'first_name' => ['required', 'string', 'max:255'],
+            'last_name'  => ['required', 'string', 'max:255'],
+            'id_number'  => ['required', 'string', 'max:255', 'unique:users,id_number'],
+            'email'      => ['required', 'string', 'email', 'max:255', 'unique:users,email'],
+            'gender'     => ['required'],
+            'strand'     => ['nullable', 'string', 'max:100'],
+            'section'    => ['nullable', 'string', 'max:100'],
+            'password'   => ['nullable', 'string', 'min:6'],
+        ]);
+
+        User::create([
+            'first_name' => $request->first_name,
+            'last_name'  => $request->last_name,
+            'id_number'  => $request->id_number,
+            'email'      => $request->email,
+            'gender'     => $request->gender,
+            'strand'     => $request->strand ?? 'STEM',
+            'section'    => $request->section ?? 'Amber',
+            'role_id'    => 3, // 3 = Student Role
+            'password'   => Hash::make($request->password ?: 'password123'), // Default password kung walang inilagay
+        ]);
+
+        return redirect()->back()->with('success', 'Matagumpay na naidagdag ang bagong estudyante!');
+    }
+    // MESSAGE INBOX METHOD (Real Data Only)
     public function messages()
     {
         $teacher = Auth::user();
@@ -176,7 +205,6 @@ class TeacherDashboardController extends Controller
         // I-check kung may 'messages' table sa database para iwas error
         if (Schema::hasTable('messages')) {
             $messages = DB::table('messages')
-                // I-join natin sa users table para makuha ang pangalan ng nag-send
                 ->leftJoin('users as senders', 'messages.sender_id', '=', 'senders.id')
                 ->where('messages.receiver_id', $teacher->id)
                 ->select('messages.*', 'senders.first_name', 'senders.last_name')
@@ -186,6 +214,7 @@ class TeacherDashboardController extends Controller
 
         return view('teacher.messages', compact('teacher', 'messages'));
     }
+
     // REPORT DASHBOARD METHOD (Real Data Only)
     public function reports()
     {
@@ -198,17 +227,38 @@ class TeacherDashboardController extends Controller
             $teacherCol = in_array('teacher_id', $schedCols) ? 'teacher_id' : (in_array('user_id', $schedCols) ? 'user_id' : null);
             
             if ($teacherCol) {
-                // Kunin lang ang mga klase ng naka-login na teacher
                 $myClasses = ClassSchedule::where($teacherCol, $teacher->id)->get();
             }
         }
 
         return view('teacher.reports', compact('teacher', 'myClasses'));
     }
-    public function attendance()
+
+    // ATTENDANCE MONITOR METHOD (Real Data Only)
+    public function attendance(Request $request)
     {
         $teacher = Auth::user();
-        return view('teacher.attendance', compact('teacher'));
+        
+        $date = $request->query('date', now()->format('Y-m-d'));
+
+        $attendanceLogs = collect([]);
+        $presentCount = 0;
+        $lateCount = 0;
+        $absentCount = 0;
+
+        if (Schema::hasTable('attendances')) {
+            $attendanceLogs = DB::table('attendances')
+                ->join('users', 'attendances.student_id', '=', 'users.id')
+                ->whereDate('attendances.created_at', $date)
+                ->select('attendances.*', 'users.first_name', 'users.last_name', 'users.id_number', 'users.section')
+                ->get();
+
+            $presentCount = $attendanceLogs->where('status', 'Present')->count();
+            $lateCount = $attendanceLogs->where('status', 'Late')->count();
+            $absentCount = $attendanceLogs->where('status', 'Absent')->count();
+        }
+
+        return view('teacher.attendance', compact('teacher', 'attendanceLogs', 'presentCount', 'lateCount', 'absentCount', 'date'));
     }
 
     public function evaluationReport()
@@ -242,10 +292,8 @@ class TeacherDashboardController extends Controller
     {
         $teacher = Auth::user();
         
-        // Kunin ang ibang guro para sa Peer Evaluation (huwag isama ang sarili)
         $peers = User::where('role_id', 2)->where('id', '!=', $teacher->id)->get();
 
-        // Kunin ang evaluation questions para sa peer at self forms
         $peerQuestions = Schema::hasTable('evaluation_questions') 
             ? DB::table('evaluation_questions')->where('form_type', 'peer')->get() 
             : collect([]);

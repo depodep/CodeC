@@ -83,7 +83,17 @@
              this.selectedStudent = student.id;
              this.searchQuery = student.name + ' (' + student.lrn + ')';
              this.openDropdown = false;
-             this.tagId = student.hasCard ? student.cardUid : '';
+             
+             // Pinapanatili ang na-scan na tag kung wala pang card ang estudyante
+             this.tagId = student.hasCard ? student.cardUid : (this.tagId || '');
+
+             // Auto focus sa tag input kapag walang existing card ang student
+             if (!student.hasCard) {
+                 this.$nextTick(() => {
+                     let tagInput = document.getElementById('hardware_tag_input');
+                     if (tagInput) tagInput.focus();
+                 });
+             }
          },
 
          clearSelection() {
@@ -134,8 +144,9 @@
                  try {
                      let response = await fetch('/api/nfc/latest');
                      let data = await response.json();
-                     if (data.card_uid && this.tagId !== data.card_uid) {
-                         this.tagId = data.card_uid;
+                     let scannedUid = data.card_uid || data.tag_id || data.uid;
+                     if (scannedUid && this.tagId !== scannedUid) {
+                         this.tagId = scannedUid;
                      }
                  } catch (e) {}
              }, 1000);
@@ -287,9 +298,15 @@
 
                     <!-- Hardware Card UID -->
                     <div class="space-y-2">
-                        <label class="block text-xs font-black uppercase tracking-wider text-slate-500">Hardware Card UID</label>
+                        <div class="flex items-center justify-between">
+                            <label class="block text-xs font-black uppercase tracking-wider text-slate-500">Hardware Card UID</label>
+                            <span class="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200" x-show="!existingCardForStudent">
+                                <i class="fa-solid fa-wifi mr-1 text-[9px] animate-pulse"></i> Ready for NFC tap
+                            </span>
+                        </div>
                         <div class="relative">
-                            <input type="text" name="tag_id" x-model="tagId" :readonly="existingCardForStudent !== null" placeholder="Awaiting card scan..." required autocomplete="off"
+                            <input type="text" id="hardware_tag_input" name="tag_id" x-model="tagId" :readonly="existingCardForStudent !== null" placeholder="Awaiting card scan..." required autocomplete="off"
+                                   @keydown.enter.prevent="if(!selectedStudent) { alert('Please select a student account first.'); } else { handleFormSubmit(); }"
                                    class="w-full border-2 rounded-2xl px-4 py-4 pl-12 text-sm font-bold uppercase tracking-wider transition shadow-2xs"
                                    :class="existingCardForStudent !== null ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed' : 'bg-slate-50/70 border-slate-200/80 text-slate-900 focus:outline-none focus:border-[#8b1818] focus:bg-white'">
                             <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400"><i class="fa-solid fa-microchip text-sm"></i></div>
@@ -390,8 +407,7 @@
             </div>
 
             <div class="p-5 bg-slate-50/70 border-t border-slate-100 flex items-center justify-between px-7">
-                <span class="text-xs font-bold text-slate-500">
-                </span>
+                <span class="text-xs font-bold text-slate-500"></span>
                 <span class="text-xs font-bold text-slate-600">
                     Total Records: <strong class="text-slate-900 font-black" x-text="filteredBoundCards.length"></strong>
                 </span>

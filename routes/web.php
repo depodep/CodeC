@@ -107,7 +107,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/evaluations/results', [AdminEvaluationController::class, 'results'])->name('evaluations.results');
         Route::post('/evaluations/toggle-status', [AdminEvaluationController::class, 'toggleStatus'])->name('evaluations.toggle');
 
-        // Questions CRUD & Reset Routes (Sinangkapan ng parehong GET at POST para maiwasan ang 404)
         Route::post('/evaluations/questions', [AdminEvaluationController::class, 'storeQuestion'])->name('evaluations.questions.store');
         Route::put('/evaluations/questions/{id}', [AdminEvaluationController::class, 'updateQuestion'])->name('evaluations.questions.update');
         Route::delete('/evaluations/questions/{id}', [AdminEvaluationController::class, 'destroyQuestion'])->name('evaluations.questions.destroy');
@@ -171,30 +170,32 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/reports', [AdminReportController::class, 'index'])->name('reports');
     });
 
-  /*
+    /*
     |--------------------------------------------------------------------------
     | Teacher / Faculty Routes
     |--------------------------------------------------------------------------
     */
     Route::middleware(['role:teacher'])->prefix('teacher')->name('teacher.')->group(function () {
         
-        // --- MGA BAGONG ROUTES MULA SA CUMUQR ---
+        // Navigation & Dashboard
         Route::get('/dashboard', [TeacherDashboardController::class, 'index'])->name('dashboard');
         Route::get('/school-years', [TeacherDashboardController::class, 'schoolYears'])->name('school-years');
         Route::get('/students', [TeacherDashboardController::class, 'students'])->name('students');
+        Route::post('/students', [TeacherDashboardController::class, 'storeStudent'])->name('students.store');
         Route::get('/messages', [TeacherDashboardController::class, 'messages'])->name('messages');
         Route::get('/reports', [TeacherDashboardController::class, 'reports'])->name('reports');
 
-        // --- MGA ORINHAL NA ROUTES NG SIATRACK ---
+        // Schedule & Class Lists
         Route::get('/schedule', [TeacherDashboardController::class, 'schedule'])->name('schedules');
         Route::post('/schedule/update', [TeacherDashboardController::class, 'updateSchedule'])->name('schedule.update');
         Route::get('/schedule/{id}/students', [TeacherDashboardController::class, 'classList'])->name('schedule.students');
         Route::put('/profile/update', [TeacherDashboardController::class, 'updateProfile'])->name('profile.update');
         
+        // Attendance
         Route::get('/attendance', [NfcAttendanceController::class, 'attendanceIndex'])->name('attendance');
         Route::get('/attendance/export', [NfcAttendanceController::class, 'exportCsv'])->name('attendance.export');
         
-        // --- Faculty Evaluation Portal (Peer & Self) ---
+        // Faculty Evaluation Portal (Peer & Self)
         Route::get('/evaluations', [TeacherDashboardController::class, 'evaluationsIndex'])->name('evaluations.index');
         Route::post('/evaluations/peer', [TeacherDashboardController::class, 'storePeerEvaluation'])->name('evaluations.peer.store');
         Route::post('/evaluations/self', [TeacherDashboardController::class, 'storeSelfEvaluation'])->name('evaluations.self.store');
@@ -212,7 +213,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/dashboard', [StudentDashboardController::class, 'index'])->name('dashboard');
         Route::get('/attendance', [StudentDashboardController::class, 'attendance'])->name('attendance');
 
-        // --- Student Evaluation Portal Routes ---
+        // Student Evaluation Portal Routes
         Route::get('/evaluations', [StudentDashboardController::class, 'evaluationsIndex'])->name('evaluations.index');
         Route::get('/evaluations/take/{teacherId}', [StudentDashboardController::class, 'takeEvaluation'])->name('evaluations.take');
         Route::post('/evaluations/store', [StudentDashboardController::class, 'storeEvaluation'])->name('evaluations.store');

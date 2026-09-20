@@ -54,7 +54,7 @@ class AdminAuditLogController extends Controller
 
         // Hourly Trend Data for Graph
         $trendRaw = (clone $query)
-            ->selectRaw('strftime("%H", created_at) as hour, count(*) as count')
+          ->selectRaw("DATE_FORMAT(created_at, '%H') as hour, COUNT(*) as count")
             ->groupBy('hour')
             ->pluck('count', 'hour')
             ->toArray();
