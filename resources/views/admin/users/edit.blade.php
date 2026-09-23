@@ -2,7 +2,7 @@
 
 @section('content')
 <!-- Main Wrapper with Left Margin to Avoid Covering the Sidebar -->
-<div class="lg:ml-72 min-h-screen flex items-center justify-center bg-slate-50/70 p-4 lg:p-8 overflow-y-auto">
+<div class="min-h-screen flex items-center justify-center bg-slate-50/70 p-4 lg:p-8 overflow-y-auto">
     
     <!-- Modal Card Box -->
     <div class="bg-white rounded-3xl border border-slate-200 p-8 pt-10 shadow-2xl relative w-full max-w-4xl my-8">

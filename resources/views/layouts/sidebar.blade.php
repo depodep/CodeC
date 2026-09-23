@@ -1,4 +1,4 @@
-﻿<aside x-data="{ collapsed: false }" 
+<aside x-data="{ collapsed: false }" 
        @toggle-sidebar.window="collapsed = !collapsed"
        :class="collapsed ? 'w-20' : 'w-72'" 
        class="bg-[#590d0d] border-r border-red-950/40 flex flex-col justify-between shrink-0 h-screen fixed top-0 left-0 z-30 shadow-2xl transition-all duration-300">
@@ -101,17 +101,18 @@
                         </div>
 
                         <!-- Faculty Evaluation with Sub-items (Fixed highlighting scope) -->
-                        <div x-data="{ open: {{ request()->routeIs('admin.evaluations.periods', 'admin.evaluations.results') ? 'true' : 'false' }} }" class="space-y-1">
+                        <div x-data="{ open: {{ request()->routeIs('admin.evaluations*') ? 'true' : 'false' }} }" class="space-y-1">
                             <button @click="open = !open" 
-                                class="w-full group flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-bold transition duration-150 {{ request()->routeIs('admin.evaluations.periods', 'admin.evaluations.results') ? 'bg-red-900/80 text-amber-300' : 'text-white hover:bg-red-900/50 hover:text-amber-200' }}">
+                                class="w-full group flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-bold transition duration-150 {{ request()->routeIs('admin.evaluations*') ? 'bg-red-900/80 text-amber-300' : 'text-white hover:bg-red-900/50 hover:text-amber-200' }}">
                                 <div class="flex items-center gap-3.5">
-                                    <i class="fa-solid fa-star-half-stroke text-base {{ request()->routeIs('admin.evaluations.periods', 'admin.evaluations.results') ? 'text-amber-300' : 'text-amber-300 group-hover:text-white' }}"></i>
+                                    <i class="fa-solid fa-star-half-stroke text-base {{ request()->routeIs('admin.evaluations*') ? 'text-amber-300' : 'text-amber-300 group-hover:text-white' }}"></i>
                                     <span class="text-[13px]" x-show="!collapsed">Faculty Evaluation</span>
                                 </div>
                                 <i class="fa-solid fa-chevron-down text-xs transition-transform duration-200" :class="open ? 'rotate-180' : ''" x-show="!collapsed"></i>
                             </button>
                             <div x-show="open && !collapsed" x-cloak class="pl-11 pr-2 space-y-1 py-1">
-                                <a href="{{ route('admin.evaluations.periods') }}" class="block py-1.5 px-3 rounded-lg text-xs font-bold text-red-200/80 hover:text-amber-300 hover:bg-red-900/40 transition">Evaluation Periods & Questions</a>
+                                <a href="{{ route('admin.evaluations.periods') }}" class="block py-1.5 px-3 rounded-lg text-xs font-bold text-red-200/80 hover:text-amber-300 hover:bg-red-900/40 transition">Periods & Questions Setup</a>
+                                <a href="{{ route('admin.evaluations.history') }}" class="block py-1.5 px-3 rounded-lg text-xs font-bold text-red-200/80 hover:text-amber-300 hover:bg-red-900/40 transition">Evaluation History</a>
                                 <a href="{{ route('admin.evaluations.results') }}" class="block py-1.5 px-3 rounded-lg text-xs font-bold text-red-200/80 hover:text-amber-300 hover:bg-red-900/40 transition">Results & Ratings Overview</a>
                             </div>
                         </div>
@@ -142,6 +143,22 @@
                             <i class="fa-solid fa-shield-halved text-base {{ request()->routeIs('admin.audit-logs*') ? 'text-amber-950' : 'text-amber-300 group-hover:text-white' }}"></i>
                            <span class="text-[13px]" x-show="!collapsed">System Audit Logs</span>
                         </a>
+
+                                <!-- Sections -->
+                                <a href="{{ route('admin.sections') }}"
+                                    class="group flex items-center gap-3.5 px-3.5 py-2.5 rounded-xl transition duration-150 {{ request()->routeIs('admin.sections*') ? 'bg-amber-400 text-amber-950 shadow-md' : 'text-white hover:bg-red-900/50 hover:text-amber-200' }}"
+                                    title="Sections">
+                                     <i class="fa-solid fa-layer-group text-base {{ request()->routeIs('admin.sections*') ? 'text-amber-950' : 'text-amber-300 group-hover:text-white' }}"></i>
+                                     <span class="text-[13px]" x-show="!collapsed">Sections</span>
+                                </a>
+
+                                <!-- Schedules -->
+                                <a href="{{ route('admin.schedules.index') }}"
+                                    class="group flex items-center gap-3.5 px-3.5 py-2.5 rounded-xl transition duration-150 {{ request()->routeIs('admin.schedules*') ? 'bg-amber-400 text-amber-950 shadow-md' : 'text-white hover:bg-red-900/50 hover:text-amber-200' }}"
+                                    title="Schedules">
+                                     <i class="fa-solid fa-calendar-days text-base {{ request()->routeIs('admin.schedules*') ? 'text-amber-950' : 'text-amber-300 group-hover:text-white' }}"></i>
+                                     <span class="text-[13px]" x-show="!collapsed">Schedules</span>
+                                </a>
 
                         <!-- Settings (Direct Single Link - No Dropdown) -->
                         <a href="{{ route('admin.settings') }}" 

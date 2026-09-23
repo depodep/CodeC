@@ -1,127 +1,212 @@
 @extends('layouts.app')
 
-@section('title', 'Faculty Dashboard | SIATRACK')
+@section('title', 'Dashboard | SIATRACK')
 
 @section('content')
 <div class="p-6 md:p-8 max-w-7xl mx-auto w-full">
-    
-    <!-- Welcome Banner (SIATRACK Theme) -->
-    <div class="bg-[#590d0d] rounded-2xl p-6 md:p-8 mb-8 text-white shadow-lg relative overflow-hidden flex flex-col md:flex-row items-center justify-between border border-red-950">
-        <!-- Background Accent -->
-        <div class="absolute top-0 right-0 w-64 h-64 bg-amber-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 transform translate-x-20 -translate-y-10"></div>
-        
-        <div class="relative z-10 w-full md:w-auto text-center md:text-left">
-            <h1 class="text-2xl md:text-3xl font-black text-amber-300 tracking-tight mb-2">
-                Welcome back, {{ $teacher->first_name }}! 👋
-            </h1>
-            <p class="text-red-200/80 text-sm font-semibold max-w-lg">
-                Here is what's happening with your classes today. Manage your schedules, monitor attendance, and review evaluations easily.
+
+    <!-- Header Section -->
+    <div class="mb-6">
+        <h1 class="text-2xl font-black text-gray-800 tracking-tight flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-white p-1 border-2 border-amber-300 shadow-sm flex items-center justify-center shrink-0">
+                <i class="fa-solid fa-house text-[#590d0d] text-lg"></i>
+            </div>
+            Dashboard
+        </h1>
+        <p class="text-sm font-semibold text-gray-500 mt-2 ml-1">
+            Welcome back, <span class="font-bold text-[#590d0d]">{{ strtoupper($teacher->first_name . ' ' . $teacher->last_name) }}</span>!
+        </p>
+    </div>
+
+    <!-- Active School Year Alert -->
+    @if(!$activePeriod)
+        <div class="mb-6 bg-rose-50 border border-rose-200 rounded-xl p-5 shadow-sm flex flex-col items-center justify-center text-center">
+            <div class="w-12 h-12 bg-rose-100 text-rose-600 rounded-full flex items-center justify-center mb-3">
+                <i class="fa-solid fa-calendar-xmark text-xl"></i>
+            </div>
+            <h3 class="text-rose-800 font-black text-lg">No Active School Year</h3>
+            <p class="text-rose-600 text-sm font-semibold mt-1">
+                The current date ({{ now()->format('M d, Y') }}) is outside any school year date range.
             </p>
         </div>
-        <div class="relative z-10 mt-6 md:mt-0">
-            <div class="px-5 py-2.5 bg-black/20 border border-white/10 rounded-xl flex items-center gap-3 shadow-inner">
-                <i class="fa-regular fa-clock text-amber-400 text-lg"></i>
-                <div class="text-left">
-                    <div class="text-[11px] text-red-200 font-bold uppercase tracking-wider">Current Date</div>
-                    <div class="text-sm font-black text-white">{{ now()->format('l, M d, Y') }}</div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Quick Stats Cards -->
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-5 mb-10">
-        <!-- Total Classes -->
-        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-5 flex items-center gap-5 hover:shadow-md transition">
-            <div class="w-14 h-14 rounded-full bg-orange-50 text-orange-600 flex items-center justify-center shrink-0">
-                <i class="fa-solid fa-chalkboard-user text-2xl"></i>
-            </div>
+    @else
+        <div class="mb-6 bg-[#590d0d] rounded-xl p-5 shadow-sm flex flex-col md:flex-row md:items-center justify-between border-b-4 border-amber-400">
             <div>
-                <p class="text-[11px] font-black text-gray-400 uppercase tracking-wider">My Active Classes</p>
-                <h3 class="text-2xl font-black text-[#590d0d]">{{ $totalClasses }}</h3>
+                <h3 class="text-amber-300 font-black text-lg flex items-center gap-2">
+                    <i class="fa-solid fa-graduation-cap"></i> Current Academic Period
+                </h3>
+                <p class="text-white text-sm font-medium mt-1 opacity-90">
+                    <i class="fa-solid fa-calendar-day mr-1"></i> S.Y. {{ $activePeriod->school_year ?? 'N/A' }}
+                </p>
             </div>
         </div>
+    @endif
 
+    <!-- 4 TOP CARDS (SIATRACK Theme) -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        
         <!-- Total Students -->
-        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-5 flex items-center gap-5 hover:shadow-md transition">
-            <div class="w-14 h-14 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
-                <i class="fa-solid fa-users text-2xl"></i>
+        <div class="bg-blue-600 rounded-xl p-5 text-white shadow-sm flex items-center justify-between relative overflow-hidden">
+            <div class="z-10">
+                <div class="text-3xl font-black">{{ $totalStudents }}</div>
+                <div class="text-xs font-bold text-blue-200 uppercase tracking-wider mt-1">My Students</div>
             </div>
-            <div>
-                <p class="text-[11px] font-black text-gray-400 uppercase tracking-wider">Total Enrolled Students</p>
-                <h3 class="text-2xl font-black text-[#590d0d]">{{ $totalStudents }}</h3>
-            </div>
+            <i class="fa-solid fa-users text-5xl opacity-20 z-10"></i>
+            <div class="absolute -right-4 -bottom-4 w-24 h-24 bg-white opacity-10 rounded-full"></div>
         </div>
 
-        <!-- Today's Classes -->
-        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-5 flex items-center gap-5 hover:shadow-md transition">
-            <div class="w-14 h-14 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
-                <i class="fa-solid fa-calendar-check text-2xl"></i>
+        <!-- My Sections -->
+        <div class="bg-[#590d0d] rounded-xl p-5 text-white shadow-sm flex items-center justify-between relative overflow-hidden">
+            <div class="z-10">
+                <div class="text-3xl font-black">{{ $mySectionsCount }}</div>
+                <div class="text-xs font-bold text-amber-300 uppercase tracking-wider mt-1">My Sections</div>
             </div>
-            <div>
-                <p class="text-[11px] font-black text-gray-400 uppercase tracking-wider">Classes Today</p>
-                <h3 class="text-2xl font-black text-[#590d0d]">{{ $todaysClasses->count() }}</h3>
+            <i class="fa-solid fa-chalkboard-user text-5xl opacity-20 z-10"></i>
+            <div class="absolute -right-4 -bottom-4 w-24 h-24 bg-white opacity-10 rounded-full"></div>
+        </div>
+
+        <!-- Present Today -->
+        <div class="bg-emerald-500 rounded-xl p-5 text-white shadow-sm flex items-center justify-between relative overflow-hidden">
+            <div class="z-10">
+                <div class="text-3xl font-black">{{ $presentToday }}</div>
+                <div class="text-xs font-bold text-emerald-100 uppercase tracking-wider mt-1">Present Today</div>
             </div>
+            <i class="fa-regular fa-calendar-check text-5xl opacity-20 z-10"></i>
+            <div class="absolute -right-4 -bottom-4 w-24 h-24 bg-white opacity-10 rounded-full"></div>
+        </div>
+
+        <!-- Attendance Rate -->
+        <div class="bg-amber-400 rounded-xl p-5 text-[#590d0d] shadow-sm flex items-center justify-between relative overflow-hidden">
+            <div class="z-10">
+                <div class="text-3xl font-black">{{ $attendanceRate }}%</div>
+                <div class="text-xs font-bold opacity-80 uppercase tracking-wider mt-1">Today's Rate</div>
+            </div>
+            <i class="fa-solid fa-chart-line text-5xl opacity-20 z-10"></i>
+            <div class="absolute -right-4 -bottom-4 w-24 h-24 bg-[#590d0d] opacity-5 rounded-full"></div>
         </div>
     </div>
 
-    <!-- Today's Schedule Table (Real Data) -->
-    <div>
-        <h2 class="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
-            <i class="fa-solid fa-calendar-day text-amber-500"></i>
-            My Schedule for Today
+    <!-- ATTENDANCE STATISTICS DASHBOARD -->
+    <div class="mb-4">
+        <h2 class="text-lg font-black text-[#590d0d] mb-4 flex items-center gap-2">
+            <i class="fa-solid fa-chart-simple text-amber-500"></i> Attendance Statistics Dashboard
         </h2>
         
-        <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-            <div class="overflow-x-auto">
-                <table class="w-full text-left text-sm whitespace-nowrap">
-                    <thead class="bg-[#590d0d] text-amber-300 font-bold uppercase tracking-wider text-[11px]">
-                        <tr>
-                            <th class="p-4 w-12">#</th>
-                            <th class="p-4">Subject</th>
-                            <th class="p-4">Section</th>
-                            <th class="p-4">Time</th>
-                            <th class="p-4 text-center">Action</th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-gray-100 text-gray-600 font-medium">
-                        @forelse($todaysClasses as $index => $class)
-                            <tr class="hover:bg-amber-50/50 transition duration-150">
-                                <td class="p-4 font-bold text-gray-400">{{ $index + 1 }}</td>
-                                <td class="p-4 font-black text-[#590d0d]">
-                                    {{ $class->subject_name ?? ($class->subject ?? 'Subject Not Set') }}
-                                </td>
-                                <td class="p-4">
-                                    <span class="bg-[#590d0d]/10 text-[#590d0d] px-2.5 py-1 rounded-md text-xs font-bold border border-[#590d0d]/20">
-                                        {{ $class->section ?? 'N/A' }}
-                                    </span>
-                                </td>
-                                <td class="p-4 text-[12px] font-semibold text-gray-500">
-                                    <i class="fa-regular fa-clock mr-1 text-amber-500"></i> 
-                                    {{ $class->time_start ?? '--:--' }} - {{ $class->time_end ?? '--:--' }}
-                                </td>
-                                <td class="p-4 text-center">
-                                    <a href="{{ route('teacher.schedule.students', $class->id) }}" class="inline-flex px-3 py-1.5 rounded-lg bg-[#590d0d] text-amber-300 hover:bg-red-950 transition text-xs font-bold items-center gap-1 shadow-sm">
-                                        View Class <i class="fa-solid fa-arrow-right"></i>
-                                    </a>
-                                </td>
-                            </tr>
-                        @empty
-                            <!-- Kung walang klase ngayong araw -->
-                            <tr>
-                                <td colspan="5" class="p-10 text-center text-gray-400 font-medium text-sm">
-                                    <div class="mx-auto w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mb-3 border border-gray-100">
-                                        <i class="fa-solid fa-mug-hot text-3xl opacity-50"></i>
-                                    </div>
-                                    You have no scheduled classes for today. Take a break!
-                                </td>
-                            </tr>
-                        @endforelse
-                    </tbody>
-                </table>
+        <!-- Stats White Cards -->
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+            <div class="bg-white rounded-xl border border-gray-200 p-4 text-center shadow-sm">
+                <div class="text-2xl font-black text-blue-600">{{ $totalStudents }}</div>
+                <div class="text-[10px] font-bold text-gray-500 uppercase tracking-widest mt-1">Total Students</div>
+            </div>
+            <div class="bg-white rounded-xl border border-gray-200 p-4 text-center shadow-sm">
+                <div class="text-2xl font-black text-emerald-600">{{ $avgAttendanceRate }}%</div>
+                <div class="text-[10px] font-bold text-gray-500 uppercase tracking-widest mt-1">Avg Attendance Rate</div>
+            </div>
+            <div class="bg-white rounded-xl border border-gray-200 p-4 text-center shadow-sm">
+                <div class="text-2xl font-black text-amber-500">{{ $presentRecords }}</div>
+                <div class="text-[10px] font-bold text-gray-500 uppercase tracking-widest mt-1">Present Records</div>
+            </div>
+            <div class="bg-white rounded-xl border border-gray-200 p-4 text-center shadow-sm">
+                <div class="text-2xl font-black text-[#590d0d]">{{ $totalRecords }}</div>
+                <div class="text-[10px] font-bold text-gray-500 uppercase tracking-widest mt-1">Total Records</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- CHART SECTION -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- Attendance Trend Chart -->
+        <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+            <div class="bg-gray-50 border-b border-gray-200 px-5 py-3">
+                <h3 class="text-xs font-bold text-gray-700 uppercase tracking-wider flex items-center gap-2">
+                    <i class="fa-solid fa-chart-area text-blue-500"></i> 7-Day Attendance Trend
+                </h3>
+            </div>
+            <div class="p-5">
+                <canvas id="attendanceTrendChart" height="250"></canvas>
+            </div>
+        </div>
+
+        <!-- System Activity Overview -->
+        <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+            <div class="bg-[#590d0d] border-b-2 border-amber-400 px-5 py-3">
+                <h3 class="text-xs font-bold text-amber-300 uppercase tracking-wider flex items-center gap-2">
+                    <i class="fa-solid fa-bell"></i> System Alerts & Updates
+                </h3>
+            </div>
+            <div class="p-5">
+                <ul class="space-y-4">
+                    <li class="flex items-start gap-3">
+                        <div class="w-8 h-8 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+                            <i class="fa-solid fa-check text-xs"></i>
+                        </div>
+                        <div>
+                            <p class="text-sm font-bold text-gray-800">System Gateway Active</p>
+                            <p class="text-xs text-gray-500 font-medium">iProgSMS gateway is ready to send notifications.</p>
+                        </div>
+                    </li>
+                    <li class="flex items-start gap-3">
+                        <div class="w-8 h-8 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+                            <i class="fa-solid fa-id-card text-xs"></i>
+                        </div>
+                        <div>
+                            <p class="text-sm font-bold text-gray-800">NFC Reader Connected</p>
+                            <p class="text-xs text-gray-500 font-medium">The attendance tapping module is online.</p>
+                        </div>
+                    </li>
+                </ul>
             </div>
         </div>
     </div>
 
 </div>
+
+<!-- CHART.JS SCRIPT -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const ctx = document.getElementById('attendanceTrendChart').getContext('2d');
+        
+        // Data mula sa Controller
+        const labels = @json($chartDates);
+        const dataPoints = @json($chartPresents);
+
+        new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Present Students',
+                    data: dataPoints,
+                    borderColor: '#3b82f6', // Blue color
+                    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                    borderWidth: 2,
+                    pointBackgroundColor: '#ffffff',
+                    pointBorderColor: '#3b82f6',
+                    pointBorderWidth: 2,
+                    pointRadius: 4,
+                    fill: true,
+                    tension: 0.3 // Para medyo curve ang linya
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            precision: 0 // Whole numbers lang para sa dami ng tao
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        display: false // Tinago natin para mas malinis
+                    }
+                }
+            }
+        });
+    });
+</script>
 @endsection

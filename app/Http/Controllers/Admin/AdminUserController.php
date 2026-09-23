@@ -20,7 +20,7 @@ class AdminUserController extends Controller
         $roleFilter = trim((string)$request->query('role', 'all'));
         $cols = Schema::getColumnListing('users');
 
-        $query = User::with(['role', 'nfcCard']);
+        $query = User::with(['role', 'nfcCard', 'classSchedules']);
 
         if (!empty($search)) {
             $query->where(function ($q) use ($search, $cols) {
@@ -32,15 +32,38 @@ class AdminUserController extends Controller
             });
         }
 
+        if ($roleFilter !== 'all' && !empty($roleFilter)) {
+            if ($roleFilter === 'admin') {
+                $query->where(function ($q) {
+                    $q->where('role_id', 1)->orWhere('role', 'admin');
+                });
+            } elseif ($roleFilter === 'faculty' || $roleFilter === 'teacher') {
+                $query->where(function ($q) {
+                    $q->where('role_id', 2)->orWhere('role', 'teacher')->orWhere('role', 'faculty');
+                });
+            } elseif ($roleFilter === 'student' || $roleFilter === 'students') {
+                $query->where(function ($q) {
+                    $q->where('role_id', 3)->orWhere('role', 'student');
+                });
+            } elseif ($roleFilter === 'director') {
+                $query->where(function ($q) {
+                    $q->where('role_id', 4)->orWhere('role', 'director');
+                });
+            }
+        }
+
         // Sort alphabetically by last name and first name
         $users = $query->orderBy('last_name', 'asc')
                        ->orderBy('first_name', 'asc')
-                       ->paginate(15);
+                       ->paginate(15)
+                       ->withQueryString();
 
         $totalUsers = User::count();
+        $adminCount = User::where(fn($q) => $q->where('role_id', 1)->orWhere('role', 'admin'))->count();
+        $facultyCount = User::where(fn($q) => $q->where('role_id', 2)->orWhere('role', 'teacher')->orWhere('role', 'faculty'))->count();
+        $studentCount = User::where(fn($q) => $q->where('role_id', 3)->orWhere('role', 'student'))->count();
 
         // --- Gender Demographic Counts for Charts ---
-        // Adjust role_id condition if your student role ID is different (e.g., 3 = student)
         $maleCount = User::where('role_id', 3)
             ->where(fn($q) => $q->where('gender', 'Male')->orWhere('gender', 'male'))
             ->count();
@@ -49,7 +72,7 @@ class AdminUserController extends Controller
             ->where(fn($q) => $q->where('gender', 'Female')->orWhere('gender', 'female'))
             ->count();
 
-        return view('admin.users.index', compact('users', 'totalUsers', 'search', 'roleFilter', 'maleCount', 'femaleCount'));
+        return view('admin.users.index', compact('users', 'totalUsers', 'adminCount', 'facultyCount', 'studentCount', 'search', 'roleFilter', 'maleCount', 'femaleCount'));
     }
 
     public function export(Request $request)
@@ -106,6 +129,10 @@ class AdminUserController extends Controller
                 default => 'student',
             };
 
+            // Linisin ang grade_level para numero lang (e.g., "Grade 11" maging "11") para iwas 1366 Incorrect integer value error
+            $rawGrade = $request->input('grade_level');
+            $cleanGrade = $rawGrade ? preg_replace('/[^0-9]/', '', $rawGrade) : null;
+
             $userData = [];
             if (in_array('first_name', $cols)) $userData['first_name'] = $request->first_name;
             if (in_array('last_name', $cols)) $userData['last_name'] = $request->last_name;
@@ -115,6 +142,9 @@ class AdminUserController extends Controller
             $userData['password'] = $request->password;
             
             if (in_array('role_id', $cols)) $userData['role_id'] = $roleId;
+            if (in_array('academic_period_id', $cols)) {
+                $userData['academic_period_id'] = DB::table('academic_periods')->where('is_active', 1)->value('id');
+            }
             if (in_array('role', $cols)) $userData['role'] = $roleString;
 
             if (in_array('id_number', $cols)) $userData['id_number'] = $request->id_number;
@@ -122,7 +152,7 @@ class AdminUserController extends Controller
             if (in_array('phone_number', $cols)) $userData['phone_number'] = $request->phone_number;
 
             if (in_array('grade_level', $cols)) {
-                $userData['grade_level'] = $isStudent ? $request->grade_level : null;
+                $userData['grade_level'] = $isStudent ? $cleanGrade : null;
             }
             if (in_array('strand', $cols)) {
                 $userData['strand'] = $isStudent ? $request->strand : null;
@@ -214,6 +244,10 @@ class AdminUserController extends Controller
                 default => 'student',
             };
 
+            // Linisin din ang grade_level para sa update method
+            $rawGrade = $request->input('grade_level');
+            $cleanGrade = $rawGrade ? preg_replace('/[^0-9]/', '', $rawGrade) : null;
+
             if (in_array('first_name', $cols)) $user->first_name = $request->first_name;
             if (in_array('last_name', $cols)) $user->last_name = $request->last_name;
             if (in_array('name', $cols)) $user->name = trim($request->first_name . ' ' . $request->last_name);
@@ -225,7 +259,7 @@ class AdminUserController extends Controller
             if (in_array('phone_number', $cols)) $user->phone_number = $request->phone_number;
             
             if (in_array('grade_level', $cols)) {
-                $user->grade_level = ($isStudent || $isAdviser) ? $request->grade_level : null;
+                $user->grade_level = ($isStudent || $isAdviser) ? $cleanGrade : null;
             }
             if (in_array('strand', $cols)) {
                 $user->strand = $isStudent ? $request->strand : null;
@@ -310,7 +344,6 @@ class AdminUserController extends Controller
 
    public function destroy($id)
     {
-        // Proteksyon laban sa pag-delete ng sariling account
         if (auth()->id() == (int)$id) {
             return redirect()->route('admin.users.index')->with('error', 'You cannot delete your own active administrator account.');
         }

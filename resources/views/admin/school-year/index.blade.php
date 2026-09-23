@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'Academic Year Management - SIATRACK')
+@section('title', 'School Year Management - SIATRACK')
 
 @section('content')
 <div class="w-full min-h-screen flex flex-col bg-gradient-to-br from-slate-50 via-slate-100 to-zinc-100 relative"
@@ -11,12 +11,22 @@
          passwordError: false,
          serverPasswordError: '{{ session('error') && str_contains(strtolower(session('error')), 'password') ? session('error') : '' }}',
          showModalPassword: false,
+         showAddPeriod: false,
+         showSchoolYears: false,
+         startDate: '',
+         endDate: '',
          isSubmitting: false,
          formatError: false,
          successModal: {{ session('success') ? 'true' : 'false' }},
          errorModal: {{ session('error') && !str_contains(strtolower(session('error')), 'password') ? 'true' : 'false' }},
-         academicYear: '{{ DB::table('settings')->where('key', 'active_school_year')->value('value') ?? $activeSchoolYear }}',
-         semester: '{{ DB::table('settings')->where('key', 'active_semester')->value('value') ?? $activeSemester }}',
+         academicYear: @js($activeSchoolYear),
+
+         updateSchoolYearPreview() {
+             if (!this.startDate || !this.endDate) return '';
+             const startYear = this.startDate.substring(0, 4);
+             const endYear = this.endDate.substring(0, 4);
+             return `${startYear}-${endYear}`;
+         },
 
          validateFormat() {
              const regex = /^\d{4}-\d{4}$/;
@@ -74,17 +84,22 @@
                 <i class="fa-solid fa-calendar-check text-amber-300"></i>
             </div>
             <div>
-                <h1 class="text-2xl font-black text-slate-900 tracking-tight">Academic Year & Term Configuration</h1>
-                <p class="text-xs text-slate-500 font-bold mt-0.5">Manage and control the active institutional calendar cycle for SIATRACK</p>
+                <h1 class="text-2xl font-black text-slate-900 tracking-tight">School Year Configuration</h1>
+                <p class="text-xs text-slate-500 font-bold mt-0.5">Manage the active institutional school year for SIATRACK</p>
             </div>
         </div>
 
         <!-- Live Status Pill -->
-        <div class="flex items-center gap-2.5 px-5 py-3 bg-amber-50 border border-amber-200/80 rounded-2xl shadow-2xs">
-            <span class="w-3 h-3 rounded-full bg-amber-500 animate-pulse"></span>
-            <span class="text-xs font-black text-amber-900 uppercase tracking-wide">
-                Active: A.Y. {{ DB::table('settings')->where('key', 'active_school_year')->value('value') ?? $activeSchoolYear }} — {{ DB::table('settings')->where('key', 'active_semester')->value('value') ?? $activeSemester }}
-            </span>
+        <div class="flex flex-wrap items-center gap-3">
+            <button type="button" @click="showSchoolYears = true" class="inline-flex items-center gap-2 px-4 py-3 bg-slate-100 border border-slate-200 rounded-2xl text-xs font-black text-slate-700 hover:bg-slate-200 transition">
+                <i class="fa-solid fa-list"></i> All School Years
+            </button>
+            <div class="flex items-center gap-2.5 px-5 py-3 bg-amber-50 border border-amber-200/80 rounded-2xl shadow-2xs">
+                <span class="w-3 h-3 rounded-full bg-amber-500 animate-pulse"></span>
+                <span class="text-xs font-black text-amber-900 uppercase tracking-wide">
+                    Active: A.Y. {{ $activeSchoolYear }}
+                </span>
+            </div>
         </div>
     </header>
 
@@ -93,57 +108,42 @@
         
         <!-- Professional Active Period Management Card -->
         <div class="bg-white rounded-3xl border border-slate-200/80 p-10 lg:p-14 shadow-2xl shadow-slate-200/60 space-y-10 w-full">
-            <div class="flex items-center justify-between pb-6 border-b border-slate-100">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-slate-100">
                 <div class="flex items-center gap-5">
                     <div class="w-14 h-14 rounded-2xl bg-red-50 text-[#8b1818] border border-red-100 flex items-center justify-center text-2xl font-black shrink-0 shadow-xs">
                         <i class="fa-solid fa-sliders"></i>
                     </div>
                     <div>
-                        <h2 class="text-xl font-black text-slate-900 tracking-tight">Active Period Setup</h2>
-                        <p class="text-xs text-slate-500 font-bold mt-0.5">Updating this will automatically transition active records while preserving archives</p>
+                        <h2 class="text-xl font-black text-slate-900 tracking-tight">Active School Year</h2>
+                        <p class="text-xs text-slate-500 font-bold mt-0.5">Select the school year used by current records while preserving archives.</p>
                     </div>
                 </div>
+                <button type="button" @click="showAddPeriod = true" class="shrink-0 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs font-black hover:bg-amber-100 transition">
+                    <i class="fa-solid fa-plus"></i>
+                    Add School Year
+                </button>
             </div>
 
             <form id="syUpdateForm" action="{{ route('admin.school-year.update') }}" method="POST" class="space-y-8">
                 @csrf
                 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-                    <!-- School Year Input -->
+                    <!-- School Year Dropdown -->
                     <div class="space-y-3">
                         <label class="block text-xs font-black uppercase tracking-wider text-slate-600">School Year</label>
                         <div class="relative">
                             <span class="absolute inset-y-0 left-0 pl-4 flex items-center text-slate-400">
                                 <i class="fa-solid fa-calendar-days text-sm"></i>
                             </span>
-                            <input type="text" id="sy_input" name="academic_year" 
-                                   x-model="academicYear" 
-                                   @input="academicYear = academicYear.replace(/[^0-9-]/g, '').slice(0, 9); formatError = false;"
-                                   maxlength="9"
-                                   required autocomplete="off" placeholder="2026-2027"
-                                   class="w-full bg-slate-50/80 border-2 rounded-2xl pl-12 pr-4 py-4 text-base font-black text-slate-900 focus:outline-none focus:bg-white transition shadow-2xs"
-                                   :class="formatError ? 'border-red-500 bg-red-50/30' : 'border-slate-200/90 focus:border-[#8b1818]'">
+                            <select id="sy_input" name="academic_year" x-model="academicYear" @change="formatError = false" required
+                                    class="w-full appearance-none bg-slate-50/80 border-2 border-slate-200/90 rounded-2xl pl-12 pr-10 py-4 text-base font-black text-slate-900 focus:outline-none focus:bg-white focus:border-[#8b1818] transition shadow-2xs">
+                                @foreach($schoolYears as $schoolYear)
+                                    <option value="{{ $schoolYear }}">{{ $schoolYear }}</option>
+                                @endforeach
+                            </select>
+                            <span class="pointer-events-none absolute inset-y-0 right-0 pr-4 flex items-center text-slate-400"><i class="fa-solid fa-chevron-down text-xs"></i></span>
                         </div>
-                        <p class="text-xs font-semibold pl-1 mt-1" :class="formatError ? 'text-red-600 font-bold' : 'text-slate-400'">
-                            <span x-show="!formatError">Strict format: YYYY-YYYY (2026-2027).</span>
-                            <span x-show="formatError" style="display: none;" x-cloak>Invalid format! Must strictly follow YYYY-YYYY.</span>
-                        </p>
-                    </div>
-                    
-                    <!-- Term / Semester Input (Walang Arrow Down) -->
-                    <div class="space-y-3">
-                        <label class="block text-xs font-black uppercase tracking-wider text-slate-600">Term</label>
-                        <div class="relative">
-                            <span class="absolute inset-y-0 left-0 pl-4 flex items-center text-slate-400">
-                                <i class="fa-solid fa-layer-group text-sm"></i>
-                            </span>
-                            <input type="text" id="sem_input" name="semester" 
-                                   x-model="semester"
-                                   @input="semester = semester.toUpperCase()"
-                                   required autocomplete="off"
-                                   class="w-full bg-slate-50/80 border-2 border-slate-200/90 rounded-2xl pl-12 pr-4 py-4 text-base font-black text-slate-900 focus:outline-none focus:border-[#8b1818] focus:bg-white transition uppercase shadow-2xs">
-                        </div>
-                        <p class="text-xs text-slate-400 font-semibold pl-1 mt-1">Type directly (1ST TERM, 2ND TERM).</p>
+                        <p class="text-xs text-slate-400 font-semibold pl-1 mt-1">Select an existing academic year.</p>
                     </div>
                 </div>
 
@@ -162,6 +162,85 @@
     </main>
 
     <!-- ================= FULL-SCREEN MODALS ================= -->
+
+    <!-- Add School Year Modal -->
+    <div x-show="showAddPeriod" x-transition class="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-950/60 backdrop-blur-md p-4" style="display: none;" x-cloak>
+        <form method="POST" action="{{ route('admin.school-year.periods.store') }}" class="bg-white rounded-3xl border border-slate-100 p-8 max-w-lg w-full shadow-2xl space-y-6">
+            @csrf
+            <div class="flex items-start justify-between gap-4">
+                <div>
+                    <h3 class="text-lg font-black text-slate-900">Add School Year</h3>
+                    <p class="text-xs font-semibold text-slate-500 mt-1">Select the date range. The school-year label will be generated automatically.</p>
+                </div>
+                <button type="button" @click="showAddPeriod = false" class="w-9 h-9 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-xs font-black text-slate-700 mb-2">Start Date</label>
+                    <input name="start_date" type="date" required x-model="startDate" @change="updateSchoolYearPreview()" value="{{ old('start_date') }}"
+                           class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold text-slate-800 focus:border-[#8b1818] focus:outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs font-black text-slate-700 mb-2">End Date</label>
+                    <input name="end_date" type="date" required x-model="endDate" @change="updateSchoolYearPreview()" value="{{ old('end_date') }}"
+                           class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold text-slate-800 focus:border-[#8b1818] focus:outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs font-black text-slate-700 mb-2">School Year</label>
+                    <input type="text" readonly :value="updateSchoolYearPreview() || 'Select dates first'"
+                           class="w-full rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-black text-amber-900 focus:outline-none">
+                    <p class="text-[11px] text-slate-400 font-semibold mt-1">Automatically generated from the selected dates.</p>
+                </div>
+            </div>
+            <div class="flex justify-end gap-3">
+                <button type="button" @click="showAddPeriod = false" class="px-5 py-3 rounded-2xl bg-slate-100 text-slate-700 text-xs font-black">Cancel</button>
+                <button type="submit" class="px-5 py-3 rounded-2xl bg-[#8b1818] text-white text-xs font-black shadow-lg"><i class="fa-solid fa-plus mr-2 text-amber-300"></i>Add School Year</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- All School Years Modal -->
+    <div x-show="showSchoolYears" x-transition class="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-950/60 backdrop-blur-md p-4" style="display: none;" x-cloak>
+        <div @click.outside="showSchoolYears = false" class="bg-white rounded-3xl border border-slate-100 p-8 max-w-2xl w-full max-h-[85vh] overflow-y-auto shadow-2xl space-y-6">
+            <div class="flex items-start justify-between gap-4">
+                <div>
+                    <h3 class="text-lg font-black text-slate-900">All School Years</h3>
+                    <p class="text-xs font-semibold text-slate-500 mt-1">Review every school year and its configured date range.</p>
+                </div>
+                <button type="button" @click="showSchoolYears = false" class="w-9 h-9 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+
+            <div class="space-y-3">
+                @forelse($schoolYearGroups as $schoolYear => $yearPeriods)
+                    <div class="rounded-2xl border {{ $schoolYear === $activeSchoolYear ? 'border-amber-300 bg-amber-50/60' : 'border-slate-200 bg-slate-50/60' }} p-4">
+                        <div class="flex items-center justify-between gap-3 mb-3">
+                            <span class="text-sm font-black text-slate-900">A.Y. {{ $schoolYear }}</span>
+                            @if($schoolYear === $activeSchoolYear)
+                                <span class="text-[10px] font-black uppercase tracking-wide text-amber-800 bg-amber-100 border border-amber-200 rounded-full px-2.5 py-1">Current Year</span>
+                            @endif
+                        </div>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            @php($period = $yearPeriods->first())
+                                <div class="flex items-center justify-between gap-3 rounded-xl bg-white border border-slate-200 px-3 py-2">
+                                    <div>
+                                        <p class="text-[10px] font-semibold text-slate-400">
+                                            {{ $period->start_date ? \Carbon\Carbon::parse($period->start_date)->format('M d, Y') : 'No start date' }}
+                                            -
+                                            {{ $period->end_date ? \Carbon\Carbon::parse($period->end_date)->format('M d, Y') : 'No end date' }}
+                                        </p>
+                                    </div>
+                                    @if($period->is_active)
+                                        <i class="fa-solid fa-circle-check text-emerald-500 text-sm" title="Active period"></i>
+                                    @endif
+                                </div>
+                        </div>
+                    </div>
+                @empty
+                    <p class="rounded-2xl bg-slate-50 p-5 text-center text-xs font-bold text-slate-500">No school years have been configured yet.</p>
+                @endforelse
+            </div>
+        </div>
+    </div>
 
     <!-- General Error Modal Popup -->
     <div x-show="errorModal" x-transition class="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-950/60 backdrop-blur-md p-4" style="display: none;" x-cloak>
@@ -210,7 +289,7 @@
             <div class="space-y-3">
                 <h3 class="text-lg font-black text-slate-900 tracking-tight">Confirm Academic Period Change</h3>
                 <p class="text-xs font-semibold text-slate-500 leading-relaxed">
-                    You are about to change the active school year and semester term. Dashboards and reports will adjust to the new active period while preserving past records as history.
+                    You are about to change the active school year. Dashboards and reports will adjust while preserving past records as history.
                 </p>
             </div>
 
@@ -232,7 +311,7 @@
 
             <div class="border border-slate-100 p-4 rounded-2xl bg-slate-50 text-left text-xs font-bold text-slate-700 flex items-center justify-between">
                 <span>Target Period:</span>
-                <span class="text-[#8b1818] font-black text-sm" x-text="'A.Y. ' + academicYear + ' — ' + semester"></span>
+                <span class="text-[#8b1818] font-black text-sm" x-text="'A.Y. ' + academicYear"></span>
             </div>
 
             <div class="grid grid-cols-2 gap-4 pt-2">

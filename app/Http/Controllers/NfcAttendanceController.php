@@ -200,6 +200,12 @@ public function attendanceIndex(Request $request)
                 'updated_at' => now(),
             ];
 
+            if (in_array('academic_period_id', $logCols) && Schema::hasTable('academic_periods')) {
+                $insertData['academic_period_id'] = DB::table('academic_periods')
+                    ->where('is_active', 1)
+                    ->value('id');
+            }
+
             if (in_array('attendance_date', $logCols)) $insertData['attendance_date'] = $today;
             if (in_array('date', $logCols))            $insertData['date'] = $today;
             if (in_array('time_in', $logCols))         $insertData['time_in'] = $nowTime;

@@ -187,22 +187,25 @@ class StudentDashboardController extends Controller
 
         // 3. Faculty Evaluation Status Check (Safe & Guarded)
         $isEvaluationOpen = Cache::get('evaluations_open', false);
+        $activeCycle = null;
         
-        // Check academic_periods table only if table and 'status' column actually exist
+        if (Schema::hasTable('evaluation_cycles')) {
+            $activeCycle = DB::table('evaluation_cycles')
+                ->where('status', 'active')
+                ->where('is_active', 1)
+                ->first();
+            
+            if ($activeCycle) {
+                $isEvaluationOpen = true;
+            }
+        }
+
         if (!$isEvaluationOpen && Schema::hasTable('academic_periods') && Schema::hasColumn('academic_periods', 'status')) {
             $periodStatus = DB::table('academic_periods')->where('is_active', 1)->value('status');
             $isEvaluationOpen = in_array(strtolower((string)$periodStatus), ['open', 'active', '1', 'true']);
         }
 
-        if (!$isEvaluationOpen && Schema::hasTable('system_settings')) {
-            $status = DB::table('system_settings')->where('key', 'evaluation_status')->value('value');
-            $isEvaluationOpen = in_array(strtolower((string)$status), ['open', 'active', '1', 'true']);
-        } elseif (!$isEvaluationOpen && Schema::hasTable('settings')) {
-            $status = DB::table('settings')->where('key', 'evaluation_status')->value('value');
-            $isEvaluationOpen = in_array(strtolower((string)$status), ['open', 'active', '1', 'true']);
-        }
-
-        return view('student.dashboard', compact('student', 'schedules', 'isEvaluationOpen'));
+        return view('student.dashboard', compact('student', 'schedules', 'isEvaluationOpen', 'activeCycle'));
     }
 
     // ==========================================
@@ -213,26 +216,41 @@ class StudentDashboardController extends Controller
     {
         $facultyMembers = User::where('role_id', 2)->orderBy('last_name', 'asc')->get();
         
-        // Kunin ang mga IDs ng guro na nasagutan na ng kasalukuyang estudyante
-        $evaluatedTeacherIds = DB::table('peer_evaluations')
-            ->where('evaluator_id', auth()->id())
-            ->pluck('evaluatee_id')
-            ->toArray();
+        $activeCycle = Schema::hasTable('evaluation_cycles')
+            ? DB::table('evaluation_cycles')->where('status', 'active')->where('is_active', 1)->first()
+            : null;
 
-        return view('student.evaluations.index', compact('facultyMembers', 'evaluatedTeacherIds'));
+        $cycleId = $activeCycle->id ?? null;
+
+        // Kunin ang mga IDs ng guro na nasagutan na ng kasalukuyang estudyante para sa active cycle
+        $evaluatedQuery = DB::table('peer_evaluations')->where('evaluator_id', auth()->id());
+        if ($cycleId) {
+            $evaluatedQuery->where('evaluation_cycle_id', $cycleId);
+        }
+        $evaluatedTeacherIds = $evaluatedQuery->pluck('evaluatee_id')->toArray();
+
+        return view('student.evaluations.index', compact('facultyMembers', 'evaluatedTeacherIds', 'activeCycle'));
     }
 
     public function takeEvaluation($teacherId)
     {
-        // Proteksyon: Kung tapos na i-evaluate, i-redirect pabalik na may kasamang mensahe
-        $alreadyEvaluated = DB::table('peer_evaluations')
-            ->where('evaluator_id', auth()->id())
-            ->where('evaluatee_id', $teacherId)
-            ->exists();
+        $activeCycle = Schema::hasTable('evaluation_cycles')
+            ? DB::table('evaluation_cycles')->where('status', 'active')->where('is_active', 1)->first()
+            : null;
 
-        if ($alreadyEvaluated) {
+        $cycleId = $activeCycle->id ?? null;
+
+        $alreadyQuery = DB::table('peer_evaluations')
+            ->where('evaluator_id', auth()->id())
+            ->where('evaluatee_id', $teacherId);
+
+        if ($cycleId) {
+            $alreadyQuery->where('evaluation_cycle_id', $cycleId);
+        }
+
+        if ($alreadyQuery->exists()) {
             return redirect()->route('student.evaluations.index')
-                ->with('error', 'You have already evaluated this instructor.');
+                ->with('error', 'You have already evaluated this instructor for this evaluation cycle.');
         }
 
         $teacher = User::where('id', $teacherId)->where('role_id', 2)->firstOrFail();
@@ -245,39 +263,49 @@ class StudentDashboardController extends Controller
 
         $groupedQuestions = $questions->groupBy('category');
 
-        return view('student.evaluations.take', compact('teacher', 'groupedQuestions'));
+        return view('student.evaluations.take', compact('teacher', 'groupedQuestions', 'activeCycle'));
     }
 
     public function storeEvaluation(Request $request)
     {
         $request->validate([
-            'evaluatee_id' => 'required|exists:users,id',
-            'scores'       => 'required|array',
-            'scores.*'     => 'required|integer|between:1,5',
-            'comments'     => 'nullable|string|max:1000',
+            'evaluatee_id'   => 'required|exists:users,id',
+            'scores'         => 'nullable|array',
+            'scores.*'       => 'nullable|integer',
+            'text_responses' => 'nullable|array',
+            'comments'       => 'nullable|string|max:1000',
         ]);
 
-        // Double check kung naka-evaluate na para maiwasan ang double submit
-        $alreadyEvaluated = DB::table('peer_evaluations')
-            ->where('evaluator_id', auth()->id())
-            ->where('evaluatee_id', $request->evaluatee_id)
-            ->exists();
+        $activeCycle = Schema::hasTable('evaluation_cycles')
+            ? DB::table('evaluation_cycles')->where('status', 'active')->where('is_active', 1)->first()
+            : null;
 
-        if ($alreadyEvaluated) {
-            return redirect()->route('student.evaluations.index')
-                ->with('error', 'You have already submitted an evaluation for this instructor.');
+        $cycleId = $activeCycle->id ?? null;
+
+        $alreadyQuery = DB::table('peer_evaluations')
+            ->where('evaluator_id', auth()->id())
+            ->where('evaluatee_id', $request->evaluatee_id);
+
+        if ($cycleId) {
+            $alreadyQuery->where('evaluation_cycle_id', $cycleId);
         }
 
-        $scores = $request->input('scores');
+        if ($alreadyQuery->exists()) {
+            return redirect()->route('student.evaluations.index')
+                ->with('error', 'You have already submitted an evaluation for this instructor for this cycle.');
+        }
+
+        $scores = array_filter((array) $request->input('scores', []), 'is_numeric');
         $averageScore = count($scores) > 0 ? round(array_sum($scores) / count($scores), 2) : 0;
 
         DB::table('peer_evaluations')->insert([
-            'evaluator_id'  => auth()->id(),
-            'evaluatee_id'  => $request->evaluatee_id,
-            'average_score' => $averageScore,
-            'comments'      => $request->input('comments'),
-            'created_at'    => now(),
-            'updated_at'    => now(),
+            'evaluation_cycle_id' => $cycleId,
+            'evaluator_id'        => auth()->id(),
+            'evaluatee_id'        => $request->evaluatee_id,
+            'average_score'       => $averageScore,
+            'comments'            => $request->input('comments'),
+            'created_at'          => now(),
+            'updated_at'          => now(),
         ]);
 
         return redirect()->route('student.evaluations.index')

@@ -8,6 +8,8 @@ class AttendanceLog extends Model
 {
     protected $fillable = [
         'student_id',
+        'user_id',
+        'academic_period_id',
         'class_schedule_id',
         'nfc_card_id',
         'scanned_at',
@@ -17,6 +19,11 @@ class AttendanceLog extends Model
     public function student()
     {
         return $this->belongsTo(User::class, 'student_id');
+    }
+
+    public function academicPeriod()
+    {
+        return $this->belongsTo(AcademicPeriod::class, 'academic_period_id');
     }
 
     public function schedule()

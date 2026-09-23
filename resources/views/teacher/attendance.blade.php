@@ -65,7 +65,7 @@
             <div class="sia-card p-5 flex items-center justify-between border-l-4 border-l-rose-500">
                 <div>
                     <p class="text-[11px] font-bold tracking-wider text-slate-400 uppercase">Total Scanned</p>
-                    <h3 class="text-3xl font-black text-slate-900 mt-1">{{ $totalScanned ?? 0 }}</h3>
+                    <h3 class="text-3xl font-black text-slate-900 mt-1">{{ $totalScanned ?? (($presentCount ?? 0) + ($lateCount ?? 0)) }}</h3>
                     <span class="text-[11px] font-semibold text-rose-600 mt-1 inline-block">Total NFC Taps</span>
                 </div>
                 <div class="w-12 h-12 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center text-xl">
@@ -90,7 +90,7 @@
                     <p class="text-xs text-red-100/75 mt-0.5">Launch the dedicated station for tap identification and real-time database recording.</p>
                 </div>
             </div>
-            <a href="{{ route('teacher.kiosk') }}" class="px-6 py-3.5 bg-white text-slate-950 hover:bg-amber-300 rounded-2xl font-black text-xs uppercase tracking-wider transition shadow-lg shrink-0 flex items-center gap-2">
+            <a href="{{ route('teacher.kiosk') }}" target="_blank" class="px-6 py-3.5 bg-white text-slate-950 hover:bg-amber-300 rounded-2xl font-black text-xs uppercase tracking-wider transition shadow-lg shrink-0 flex items-center gap-2">
                 <i class="fa-solid fa-arrow-up-right-from-square"></i> Launch Kiosk Terminal
             </a>
         </div>
@@ -98,12 +98,12 @@
         <!-- FULL-WIDTH ATTENDANCE RECORDS TABLE -->
         <div class="sia-card p-6 w-full">
             
-            <!-- Filters Toolbar -->
+            <!-- Filters Toolbar (Added SF2 Button) -->
             <form method="GET" action="{{ route('teacher.attendance') }}" class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 pb-5 border-b border-slate-100">
                 <div class="flex items-center gap-2">
                     <span class="px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-50 text-amber-900 border border-amber-200 uppercase tracking-wider">Filtered Date</span>
                     <h3 class="font-black text-slate-900 text-base">
-                        {{ \Carbon\Carbon::parse($dateFrom)->format('F d, Y') }}
+                        {{ \Carbon\Carbon::parse($dateFrom ?? now())->format('F d, Y') }}
                     </h3>
                 </div>
 
@@ -122,12 +122,18 @@
                     </select>
 
                     <!-- Date Picker -->
-                    <input type="date" name="date_from" value="{{ $dateFrom }}" class="px-3 py-2 bg-slate-50 border border-slate-200 text-xs font-semibold rounded-xl text-slate-700 outline-none focus:border-amber-400 cursor-pointer">
-                    <input type="hidden" name="date_to" value="{{ $dateFrom }}">
+                    <input type="date" name="date_from" value="{{ $dateFrom ?? now()->format('Y-m-d') }}" class="px-3 py-2 bg-slate-50 border border-slate-200 text-xs font-semibold rounded-xl text-slate-700 outline-none focus:border-amber-400 cursor-pointer">
+                    <input type="hidden" name="date_to" value="{{ $dateFrom ?? now()->format('Y-m-d') }}">
 
+                    <!-- Action Buttons -->
                     <button type="submit" class="px-4 py-2 bg-[#5c0d11] hover:bg-[#43090c] text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm">
                         <i class="fa-solid fa-filter"></i> Apply
                     </button>
+
+                    <!-- NEW: Generate SF2 Button -->
+                    <a href="{{ route('teacher.attendance.export') ?? '#' }}?date={{ $dateFrom ?? now()->format('Y-m-d') }}" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm border border-emerald-700" title="Download Monthly Attendance Report">
+                        <i class="fa-solid fa-file-excel"></i> Export SF2
+                    </a>
 
                     <a href="{{ route('teacher.attendance') }}" class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-xs font-semibold transition" title="Reset Filters">
                         <i class="fa-solid fa-rotate-left"></i>

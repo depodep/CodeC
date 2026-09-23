@@ -21,19 +21,74 @@ class AdminSchoolYearController extends Controller
             );
         }
 
-        $semSetting = DB::table('settings')->where('key', 'active_semester')->first();
-        if (!$semSetting) {
-            DB::table('settings')->updateOrInsert(
-                ['key' => 'active_semester'],
-                ['value' => '1ST SEMESTER', 'updated_at' => now()]
-            );
+        $activeSchoolYear = DB::table('settings')->where('key', 'active_school_year')->value('value');
+
+        if (Schema::hasTable('academic_periods')) {
+            $activePeriod = DB::table('academic_periods')->where('is_active', true)->first();
+
+            if (!$activePeriod) {
+                $periodId = DB::table('academic_periods')->insertGetId([
+                    'school_year' => $activeSchoolYear,
+                    'semester' => 'ANNUAL',
+                    'is_active' => true,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+                $activePeriod = DB::table('academic_periods')->where('id', $periodId)->first();
+            }
+
+            $activeSchoolYear = $activePeriod->school_year;
         }
 
-        $activeSchoolYear = DB::table('settings')->where('key', 'active_school_year')->value('value');
-        $activeSemester = DB::table('settings')->where('key', 'active_semester')->value('value');
+        $periods = Schema::hasTable('academic_periods')
+            ? DB::table('academic_periods')->orderByDesc('school_year')->orderBy('semester')->get()
+            : collect();
+        $schoolYears = $periods->pluck('school_year')->unique()->values();
+        if ($schoolYears->isEmpty()) {
+            $schoolYears = collect([$activeSchoolYear]);
+        }
+        $schoolYearGroups = $periods->groupBy('school_year');
         $totalLogs = Schema::hasTable('attendance_logs') ? DB::table('attendance_logs')->count() : 0;
 
-        return view('admin.school-year.index', compact('activeSchoolYear', 'activeSemester', 'totalLogs'));
+        return view('admin.school-year.index', compact(
+            'activeSchoolYear', 'periods', 'schoolYears', 'schoolYearGroups', 'totalLogs'
+        ));
+    }
+
+    public function storePeriod(Request $request)
+    {
+        $validated = $request->validate([
+            'start_date' => ['required', 'date'],
+            'end_date' => ['required', 'date', 'after_or_equal:start_date'],
+        ]);
+
+        $startYear = (int) date('Y', strtotime($validated['start_date']));
+        $endYear = (int) date('Y', strtotime($validated['end_date']));
+        $academicYear = $startYear . '-' . $endYear;
+
+        if (!Schema::hasTable('academic_periods')) {
+            return back()->with('error', 'Academic periods table is not available. Run the migrations first.');
+        }
+
+        $exists = DB::table('academic_periods')
+            ->where('school_year', $academicYear)
+            ->exists();
+
+        if ($exists) {
+            return back()->with('error', 'That school year already exists. Select it from the active school-year list.');
+        }
+
+        DB::table('academic_periods')->insert([
+            'school_year' => $academicYear,
+            'semester' => 'ANNUAL',
+            'is_active' => false,
+            'start_date' => $validated['start_date'],
+            'end_date' => $validated['end_date'],
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        return back()->with('success', 'New school year added. Select it from the active school-year list when ready.');
     }
 
     public function update(Request $request)
@@ -41,7 +96,6 @@ class AdminSchoolYearController extends Controller
         // 1. I-validate ang pormat ng inputs at password field
         $request->validate([
             'academic_year'  => ['required', 'string', 'regex:/^\d{4}-\d{4}$/'],
-            'semester'       => ['required', 'string', 'max:100'],
             'admin_password' => ['required', 'string']
         ], [
             'academic_year.regex' => 'The school year must strictly follow the YYYY-YYYY format (e.g., 2026-2027).'
@@ -79,13 +133,38 @@ class AdminSchoolYearController extends Controller
                 ['value' => $request->academic_year, 'updated_at' => now()]
             );
 
-            DB::table('settings')->updateOrInsert(
-                ['key' => 'active_semester'],
-                ['value' => strtoupper($request->semester), 'updated_at' => now()]
-            );
         }
 
-        return back()->with('success', 'Active school year successfully updated to A.Y. ' . $request->academic_year . ' — ' . strtoupper($request->semester));
+        if (Schema::hasTable('academic_periods')) {
+            DB::table('academic_periods')->update(['is_active' => false]);
+
+            $period = DB::table('academic_periods')
+                ->where('school_year', $request->academic_year)
+                ->first();
+
+            if ($period) {
+                DB::table('academic_periods')->where('id', $period->id)->update([
+                    'is_active' => true,
+                    'updated_at' => now(),
+                ]);
+            } else {
+                DB::table('academic_periods')->insert([
+                    'school_year' => $request->academic_year,
+                    'semester' => 'ANNUAL',
+                    'is_active' => true,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+            }
+
+            $activePeriodId = DB::table('academic_periods')
+                ->where('school_year', $request->academic_year)
+                ->value('id');
+
+            DB::table('academic_periods')->where('id', $activePeriodId)->update(['is_active' => true]);
+        }
+
+        return back()->with('success', 'Active school year successfully updated to A.Y. ' . $request->academic_year . '.');
     }
 
     public function reset()
@@ -94,10 +173,6 @@ class AdminSchoolYearController extends Controller
             DB::table('settings')->updateOrInsert(
                 ['key' => 'active_school_year'],
                 ['value' => '2026-2027', 'updated_at' => now()]
-            );
-            DB::table('settings')->updateOrInsert(
-                ['key' => 'active_semester'],
-                ['value' => '1ST SEMESTER', 'updated_at' => now()]
             );
         }
 

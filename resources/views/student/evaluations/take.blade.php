@@ -22,15 +22,51 @@
                 <div class="space-y-6">
                     @foreach($questions as $q)
                         <div class="space-y-2">
-                            <p class="text-xs font-bold text-slate-800">{{ $q->order_num }}. {{ $q->question }}</p>
-                            <div class="flex items-center gap-4">
-                                @for($score = 1; $score <= 5; $score++)
-                                    <label class="flex items-center gap-1.5 cursor-pointer text-xs font-bold text-slate-600 bg-slate-50 px-3 py-2 rounded-xl border border-slate-200 hover:bg-slate-100 transition flex-1 justify-center">
-                                        <input type="radio" name="scores[{{ $q->id }}]" value="{{ $score }}" required class="accent-[#8b1818]">
-                                        <span>{{ $score }}</span>
+                            <p class="text-xs font-bold text-slate-800">{{ $loop->iteration }}. {{ $q->question }}</p>
+                            
+                            @php
+                                $qType = $q->type ?? 'likert';
+                                $options = [];
+                                if (!empty($q->options)) {
+                                    $options = is_array($q->options) ? $q->options : json_decode($q->options, true);
+                                    if (!is_array($options) && is_string($q->options)) {
+                                        $options = array_map('trim', explode(',', $q->options));
+                                    }
+                                }
+                            @endphp
+
+                            @if($qType === 'yes_no')
+                                <div class="flex items-center gap-4">
+                                    <label class="flex items-center gap-2 cursor-pointer text-xs font-bold text-slate-700 bg-slate-50 px-4 py-2.5 rounded-xl border border-slate-200 hover:bg-slate-100 transition flex-1 justify-center">
+                                        <input type="radio" name="scores[{{ $q->id }}]" value="5" {{ ($q->is_required ?? true) ? 'required' : '' }} class="accent-[#8b1818]">
+                                        <span>Yes</span>
                                     </label>
-                                @endfor
-                            </div>
+                                    <label class="flex items-center gap-2 cursor-pointer text-xs font-bold text-slate-700 bg-slate-50 px-4 py-2.5 rounded-xl border border-slate-200 hover:bg-slate-100 transition flex-1 justify-center">
+                                        <input type="radio" name="scores[{{ $q->id }}]" value="1" {{ ($q->is_required ?? true) ? 'required' : '' }} class="accent-[#8b1818]">
+                                        <span>No</span>
+                                    </label>
+                                </div>
+                            @elseif($qType === 'multiple_choice')
+                                <div class="space-y-2">
+                                    @foreach(($options ?: ['Option 1', 'Option 2']) as $optIdx => $opt)
+                                        <label class="flex items-center gap-3 cursor-pointer text-xs font-semibold text-slate-700 bg-slate-50 p-3 rounded-xl border border-slate-200 hover:bg-slate-100 transition">
+                                            <input type="radio" name="scores[{{ $q->id }}]" value="{{ $optIdx + 1 }}" {{ ($q->is_required ?? true) ? 'required' : '' }} class="accent-[#8b1818]">
+                                            <span>{{ $opt }}</span>
+                                        </label>
+                                    @endforeach
+                                </div>
+                            @elseif($qType === 'open_ended')
+                                <textarea name="text_responses[{{ $q->id }}]" rows="2" placeholder="Write your response..." class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:border-[#8b1818]"></textarea>
+                            @else
+                                <div class="flex items-center gap-2 sm:gap-4">
+                                    @for($score = 1; $score <= 5; $score++)
+                                        <label class="flex items-center gap-1.5 cursor-pointer text-xs font-bold text-slate-600 bg-slate-50 px-3 py-2 rounded-xl border border-slate-200 hover:bg-slate-100 transition flex-1 justify-center">
+                                            <input type="radio" name="scores[{{ $q->id }}]" value="{{ $score }}" {{ ($q->is_required ?? true) ? 'required' : '' }} class="accent-[#8b1818]">
+                                            <span>{{ $score }}</span>
+                                        </label>
+                                    @endfor
+                                </div>
+                            @endif
                         </div>
                     @endforeach
                 </div>

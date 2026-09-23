@@ -1,59 +1,222 @@
 @extends('layouts.app')
 
-@section('title', 'Settings Dashboard - SIATRACK')
+@section('title', 'System Configuration - SIATRACK')
 
 @section('content')
-<div class="w-full min-h-screen flex flex-col bg-slate-50/70 p-6 lg:p-10 space-y-8">
+<div class="w-full min-h-screen flex flex-col bg-slate-50/70 p-6 lg:p-10 space-y-8" x-data="{ showAddSchoolYear: false, showAllSchoolYears: false, showEditDates: false, smsTesting: false, smsResult: null }">
     
-    <!-- Top Header Bar -->
     <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-3xl border-2 border-slate-200 shadow-xs">
         <div class="flex items-center gap-3.5">
             <div class="w-10 h-10 rounded-xl bg-[#590d0d] text-amber-300 flex items-center justify-center text-base shadow-xs shrink-0">
                 <i class="fa-solid fa-gear"></i>
             </div>
             <div>
-                <h1 class="text-xl lg:text-2xl font-black text-slate-900 tracking-tight">System Settings & Academic Setup</h1>
-                <p class="text-xs text-slate-500 font-bold mt-0.5">Manage institutional configurations, school years, sections, and schedules</p>
+                <h1 class="text-xl lg:text-2xl font-black text-slate-900 tracking-tight">System Configuration</h1>
+                <p class="text-xs text-slate-500 font-bold mt-0.5">Manage the active academic year and connected SMS gateway.</p>
             </div>
         </div>
     </div>
 
-    <!-- Settings & Academic Setup Hub Grid -->
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 w-full">
+    @if(session('success'))
+        <div class="p-4 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold rounded-2xl">
+            {{ session('success') }}
+        </div>
+    @endif
 
-        <!-- 1. School Year & Semesters -->
-        <a href="{{ route('admin.school-year') }}" class="p-6 bg-white rounded-3xl border-2 border-slate-200 shadow-xs hover:border-amber-300 hover:shadow-md transition flex items-start gap-4 group block">
-            <div class="w-12 h-12 rounded-2xl bg-amber-50 border-2 border-amber-200 text-amber-700 flex items-center justify-center text-xl shrink-0 group-hover:scale-105 transition">
-                <i class="fa-solid fa-calendar-days"></i>
-            </div>
-            <div class="space-y-1 flex-1">
-                <h3 class="text-base font-black text-slate-900 group-hover:text-amber-700 transition">School Year & Semesters</h3>
-                <p class="text-xs text-slate-500 font-semibold">Establish active academic calendars, grading periods, and active terms.</p>
-            </div>
-        </a>
+    @if($errors->any())
+        <div class="p-4 bg-rose-50 border border-rose-200 text-rose-800 text-xs font-bold rounded-2xl">
+            {{ $errors->first() }}
+        </div>
+    @endif
 
-        <!-- 2. Section & Class Management -->
-        <a href="{{ route('admin.sections') }}" class="p-6 bg-white rounded-3xl border-2 border-slate-200 shadow-xs hover:border-blue-300 hover:shadow-md transition flex items-start gap-4 group block">
-            <div class="w-12 h-12 rounded-2xl bg-blue-50 border-2 border-blue-200 text-blue-700 flex items-center justify-center text-xl shrink-0 group-hover:scale-105 transition">
-                <i class="fa-solid fa-layer-group"></i>
-            </div>
-            <div class="space-y-1 flex-1">
-                <h3 class="text-base font-black text-slate-900 group-hover:text-blue-700 transition">Section & Class Management</h3>
-                <p class="text-xs text-slate-500 font-semibold">Organize student groups, grade placement tracks, and sections.</p>
-            </div>
-        </a>
+    <div class="grid grid-cols-1 xl:grid-cols-2 gap-6 w-full">
 
-        <!-- 3. Class Schedules & Rooms -->
-        <a href="{{ route('admin.schedules.index') }}" class="p-6 bg-white rounded-3xl border-2 border-slate-200 shadow-xs hover:border-emerald-300 hover:shadow-md transition flex items-start gap-4 group block">
-            <div class="w-12 h-12 rounded-2xl bg-emerald-50 border-2 border-emerald-200 text-emerald-700 flex items-center justify-center text-xl shrink-0 group-hover:scale-105 transition">
-                <i class="fa-solid fa-clock"></i>
+        <!-- 1. School Year -->
+        <section class="p-6 bg-white rounded-3xl border-2 border-slate-200 shadow-xs xl:col-span-1">
+            <div class="flex items-start gap-4">
+                <div class="w-12 h-12 rounded-2xl bg-amber-50 border-2 border-amber-200 text-amber-700 flex items-center justify-center text-xl shrink-0">
+                    <i class="fa-solid fa-calendar-days"></i>
+                </div>
+                <div class="flex-1 min-w-0">
+                    <h3 class="text-base font-black text-slate-900">School Year</h3>
+                    <p class="text-xs text-slate-500 font-semibold mt-1">Current active school year and date range.</p>
+                </div>
             </div>
-            <div class="space-y-1 flex-1">
-                <h3 class="text-base font-black text-slate-900 group-hover:text-emerald-700 transition">Class Schedules & Rooms</h3>
-                <p class="text-xs text-slate-500 font-semibold">Set daily time tables, room assignments, and subject schedules.</p>
-            </div>
-        </a>
 
+            @if($activePeriod)
+                <div class="mt-6 rounded-2xl border border-amber-200 bg-amber-50/70 p-5">
+                    <div class="flex items-center gap-2 text-[10px] font-black uppercase tracking-wider text-amber-700">
+                        <span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span> Active School Year
+                    </div>
+                    <p class="mt-2 text-2xl font-black text-slate-900">S.Y. {{ $activePeriod->school_year }}</p>
+                    <p class="mt-2 text-xs font-bold text-slate-600">
+                        {{ $activePeriod->start_date ? \Carbon\Carbon::parse($activePeriod->start_date)->format('M d, Y') : 'Start date not set' }}
+                        <span class="mx-1 text-slate-400">-</span>
+                        {{ $activePeriod->end_date ? \Carbon\Carbon::parse($activePeriod->end_date)->format('M d, Y') : 'End date not set' }}
+                    </p>
+                    <button type="button" @click="showEditDates = true" class="mt-4 inline-flex items-center gap-2 rounded-xl bg-white border border-amber-200 px-3 py-2 text-[11px] font-black text-amber-800 hover:bg-amber-100 transition">
+                        <i class="fa-solid fa-pen-to-square"></i> Update Dates
+                    </button>
+                </div>
+            @else
+                <div class="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-5">
+                    <p class="text-base font-black text-slate-800">No Active School Year</p>
+                    <p class="mt-1 text-xs font-semibold text-slate-500">Add a school year to begin configuring the academic calendar.</p>
+                </div>
+            @endif
+
+            <div class="mt-5 grid grid-cols-2 gap-3">
+                <button type="button" @click="showAllSchoolYears = true" class="px-3 py-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-black transition">
+                    <i class="fa-solid fa-list mr-1"></i> See All School Years
+                </button>
+                <button type="button" @click="showAddSchoolYear = true" class="px-3 py-3 rounded-xl bg-[#590d0d] hover:bg-[#701010] text-white text-xs font-black transition shadow-md">
+                    <i class="fa-solid fa-plus mr-1 text-amber-300"></i> Add School Year
+                </button>
+            </div>
+        </section>
+
+        <!-- SMS API -->
+        <div class="p-6 bg-white rounded-3xl border-2 border-slate-200 shadow-xs xl:col-span-1">
+            <div class="flex items-start gap-4 mb-5">
+                <div class="w-12 h-12 rounded-2xl bg-emerald-50 border-2 border-emerald-200 text-emerald-700 flex items-center justify-center text-xl shrink-0">
+                    <i class="fa-solid fa-tower-broadcast"></i>
+                </div>
+                <div>
+                    <h3 class="text-base font-black text-slate-900">SMS API</h3>
+                    <p class="text-xs text-slate-500 font-semibold mt-1">Configure the Android SMS Gateway API used for notifications.</p>
+                </div>
+            </div>
+
+            <form method="POST" action="{{ route('admin.settings.sms.update') }}" class="space-y-4">
+                @csrf
+                <div>
+                    <label for="sms_url" class="block text-xs font-black text-slate-700 mb-1.5">Gateway URL</label>
+                    <input id="sms_url" name="url" type="url" required value="{{ old('url', $smsConfig['url']) }}"
+                           class="w-full px-4 py-3 bg-slate-50/70 border border-slate-200 rounded-2xl text-xs font-semibold text-slate-800 focus:outline-none focus:border-emerald-500 focus:bg-white transition">
+                </div>
+                <div>
+                    <label for="sms_login" class="block text-xs font-black text-slate-700 mb-1.5">Gateway Login / Username</label>
+                    <input id="sms_login" name="login" type="text" required value="{{ old('login', $smsConfig['login']) }}"
+                           class="w-full px-4 py-3 bg-slate-50/70 border border-slate-200 rounded-2xl text-xs font-semibold text-slate-800 focus:outline-none focus:border-emerald-500 focus:bg-white transition">
+                </div>
+                <div>
+                    <label for="sms_password" class="block text-xs font-black text-slate-700 mb-1.5">Gateway Password</label>
+                    <input id="sms_password" name="password" type="password" autocomplete="new-password" placeholder="{{ $smsPasswordConfigured ? 'Leave blank to keep the current password' : 'Enter gateway password' }}"
+                           class="w-full px-4 py-3 bg-slate-50/70 border border-slate-200 rounded-2xl text-xs font-semibold text-slate-800 focus:outline-none focus:border-emerald-500 focus:bg-white transition">
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <label class="flex items-center gap-2 text-xs font-bold text-slate-700"><input type="checkbox" name="validate_numbers" value="1" {{ old('validate_numbers', $smsConfig['validate_numbers']) ? 'checked' : '' }}> Validate Numbers</label>
+                    <label class="flex items-center gap-2 text-xs font-bold text-slate-700"><input type="checkbox" name="enable_rate_limiting" value="1" {{ old('enable_rate_limiting', $smsConfig['enable_rate_limiting']) ? 'checked' : '' }}> Rate Limiting</label>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div><label for="sms_timeout" class="block text-xs font-black text-slate-700 mb-1.5">Request Timeout</label><input id="sms_timeout" name="timeout" type="number" min="1" max="300" required value="{{ old('timeout', $smsConfig['timeout']) }}" class="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold"></div>
+                    <div><label for="sms_delay" class="block text-xs font-black text-slate-700 mb-1.5">Message Delay (sec)</label><input id="sms_delay" name="message_delay_seconds" type="number" min="0" required value="{{ old('message_delay_seconds', $smsConfig['message_delay_seconds']) }}" class="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold"></div>
+                </div>
+                <div class="flex items-center justify-between gap-3 pt-2">
+                    <span class="text-[11px] font-bold" :class="smsResult?.success ? 'text-emerald-600' : 'text-slate-500'"><i class="fa-solid fa-clock mr-1"></i><span x-text="smsResult ? (smsResult.message + (smsResult.response_time_ms ? ' ' + smsResult.response_time_ms + ' ms' : '')) : '{{ $smsLastPing ? 'Last ping: ' . $smsLastPing : 'Last ping: Not tested' }}'"></span></span>
+                    <div class="flex gap-2">
+                        <button type="button" @click="smsTesting = true; smsResult = null; fetch('{{ route('admin.settings.sms.test') }}', {method: 'POST', headers: {'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json'}}).then(r => r.json()).then(data => smsResult = data).catch(() => smsResult = {success:false, message:'Unable to test SMS API.'}).finally(() => smsTesting = false)" :disabled="smsTesting" class="px-3 py-2.5 bg-slate-100 text-slate-700 text-xs font-black rounded-xl"><i class="fa-solid fa-plug mr-1"></i><span x-text="smsTesting ? 'Testing...' : 'Test Connection'"></span></button>
+                        <button type="submit" class="px-4 py-2.5 bg-[#590d0d] hover:bg-red-950 text-white text-xs font-black rounded-xl shadow-md transition"><i class="fa-solid fa-floppy-disk mr-1.5"></i>Save Configuration</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+
+    </div>
+
+    <!-- Update Active School Year Dates Modal -->
+    @if($activePeriod)
+        <div x-show="showEditDates" x-transition class="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-950/60 backdrop-blur-md p-4" style="display:none" x-cloak>
+            <form method="POST" action="{{ route('admin.settings.school-year.dates.update') }}" class="bg-white rounded-3xl p-8 max-w-lg w-full shadow-2xl space-y-6">
+                @csrf
+                <input type="hidden" name="academic_period_id" value="{{ $activePeriod->id }}">
+                <div class="flex items-start justify-between gap-4">
+                    <div>
+                        <h3 class="text-lg font-black text-slate-900">Update School Year Dates</h3>
+                        <p class="text-xs font-semibold text-slate-500 mt-1">S.Y. {{ $activePeriod->school_year }}</p>
+                    </div>
+                    <button type="button" @click="showEditDates = false" class="w-9 h-9 rounded-full bg-slate-100 text-slate-500"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-black text-slate-700 mb-2">Start Date</label>
+                        <input name="start_date" type="date" required value="{{ $activePeriod->start_date }}" class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold focus:border-[#8b1818] focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-black text-slate-700 mb-2">End Date</label>
+                        <input name="end_date" type="date" required value="{{ $activePeriod->end_date }}" class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold focus:border-[#8b1818] focus:outline-none">
+                    </div>
+                </div>
+                <div class="flex justify-end gap-3">
+                    <button type="button" @click="showEditDates = false" class="px-5 py-3 rounded-xl bg-slate-100 text-slate-700 text-xs font-black">Cancel</button>
+                    <button type="submit" class="px-5 py-3 rounded-xl bg-[#590d0d] text-white text-xs font-black"><i class="fa-solid fa-floppy-disk mr-1 text-amber-300"></i>Update Dates</button>
+                </div>
+            </form>
+        </div>
+    @endif
+
+    <!-- Add School Year Modal -->
+    <div x-show="showAddSchoolYear" x-transition class="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-950/60 backdrop-blur-md p-4" style="display:none" x-cloak>
+        <form method="POST" action="{{ route('admin.school-year.periods.store') }}" class="bg-white rounded-3xl p-8 max-w-lg w-full shadow-2xl space-y-6">
+            @csrf
+            <div class="flex items-start justify-between gap-4">
+                <div>
+                    <h3 class="text-lg font-black text-slate-900">Add School Year</h3>
+                    <p class="text-xs font-semibold text-slate-500 mt-1">The school-year label is generated from the selected dates.</p>
+                </div>
+                <button type="button" @click="showAddSchoolYear = false" class="w-9 h-9 rounded-full bg-slate-100 text-slate-500"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-xs font-black text-slate-700 mb-2">Start Date</label>
+                    <input name="start_date" type="date" required class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold focus:border-[#8b1818] focus:outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs font-black text-slate-700 mb-2">End Date</label>
+                    <input name="end_date" type="date" required class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold focus:border-[#8b1818] focus:outline-none">
+                </div>
+            </div>
+            <div class="flex justify-end gap-3">
+                <button type="button" @click="showAddSchoolYear = false" class="px-5 py-3 rounded-xl bg-slate-100 text-slate-700 text-xs font-black">Cancel</button>
+                <button type="submit" class="px-5 py-3 rounded-xl bg-[#590d0d] text-white text-xs font-black"><i class="fa-solid fa-plus mr-1 text-amber-300"></i>Add School Year</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- All School Years Modal -->
+    <div x-show="showAllSchoolYears" x-transition class="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-950/60 backdrop-blur-md p-4" style="display:none" x-cloak>
+        <div @click.outside="showAllSchoolYears = false" class="bg-white rounded-3xl p-8 max-w-2xl w-full max-h-[85vh] overflow-y-auto shadow-2xl space-y-5">
+            <div class="flex items-start justify-between gap-4">
+                <div>
+                    <h3 class="text-lg font-black text-slate-900">All School Years</h3>
+                    <p class="text-xs font-semibold text-slate-500 mt-1">Select a year from the list to review its date range.</p>
+                </div>
+                <button type="button" @click="showAllSchoolYears = false" class="w-9 h-9 rounded-full bg-slate-100 text-slate-500"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="space-y-3">
+                @forelse($schoolYearGroups as $schoolYear => $yearPeriods)
+                    @php
+                        $period = $yearPeriods->first(fn ($item) => filled($item->start_date) && filled($item->end_date)) ?? $yearPeriods->first();
+                        $isActiveYear = $yearPeriods->contains(fn ($item) => (bool) $item->is_active);
+                    @endphp
+                    <div class="flex items-center justify-between gap-4 rounded-2xl border {{ $isActiveYear ? 'border-amber-300 bg-amber-50/60' : 'border-slate-200 bg-slate-50/60' }} p-4">
+                        <div>
+                            <p class="text-sm font-black text-slate-900">S.Y. {{ $schoolYear }}</p>
+                            <p class="text-xs font-semibold text-slate-500 mt-1">
+                                {{ $period->start_date ? \Carbon\Carbon::parse($period->start_date)->format('M d, Y') : 'Start date not set' }}
+                                <span class="mx-1">-</span>
+                                {{ $period->end_date ? \Carbon\Carbon::parse($period->end_date)->format('M d, Y') : 'End date not set' }}
+                            </p>
+                        </div>
+                        @if($isActiveYear)
+                            <span class="text-[10px] font-black uppercase text-emerald-700"><i class="fa-solid fa-circle-check mr-1"></i>Active</span>
+                        @endif
+                    </div>
+                @empty
+                    <p class="rounded-2xl bg-slate-50 p-5 text-center text-xs font-bold text-slate-500">No school years added.</p>
+                @endforelse
+            </div>
+        </div>
     </div>
 
 </div>

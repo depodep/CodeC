@@ -63,6 +63,11 @@ class User extends Authenticatable
         return $this->belongsTo(Role::class, 'role_id');
     }
 
+    public function academicPeriod()
+    {
+        return $this->belongsTo(AcademicPeriod::class, 'academic_period_id');
+    }
+
     public function nfcCard()
     {
         return $this->hasOne(NfcCard::class, 'user_id');
@@ -71,6 +76,11 @@ class User extends Authenticatable
     public function attendanceLogs()
     {
         return $this->hasMany(AttendanceLog::class, 'user_id');
+    }
+
+    public function classSchedules()
+    {
+        return $this->hasMany(ClassSchedule::class, 'teacher_id');
     }
 
     /* ================= ACCESSORS & MUTATORS ================= */

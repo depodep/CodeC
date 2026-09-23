@@ -10,9 +10,15 @@ class AcademicSection extends Model
     use HasFactory;
 
     protected $fillable = [
+        'academic_period_id',
         'grade_level',
         'section_name',
     ];
+
+    public function academicPeriod()
+    {
+        return $this->belongsTo(AcademicPeriod::class, 'academic_period_id');
+    }
 
     public function students()
     {

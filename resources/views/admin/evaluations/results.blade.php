@@ -22,20 +22,53 @@
                 <i class="fa-solid fa-arrow-left"></i>
             </a>
             <div>
-                <h1 class="text-2xl font-black text-slate-900 tracking-tight">Faculty Evaluation Analytics & Overview</h1>
-                <p class="text-xs text-slate-500 font-bold mt-0.5">Quantitative appraisal metrics, distribution charts, and peer rating data</p>
+                <div class="flex items-center gap-2">
+                    <h1 class="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">Faculty Evaluation Results</h1>
+                    @if(isset($selectedCycle) && $selectedCycle)
+                        <span class="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-100 text-amber-900 border border-amber-300/60">
+                            SY {{ $selectedCycle->school_year }}
+                        </span>
+                    @endif
+                </div>
+                <p class="text-xs text-slate-500 font-bold mt-0.5">
+                    @if(isset($selectedCycle) && $selectedCycle)
+                        Showing results for: <span class="text-slate-900 font-extrabold">{{ $selectedCycle->name }}</span> ({{ \Carbon\Carbon::parse($selectedCycle->start_date)->format('M d') }} &ndash; {{ \Carbon\Carbon::parse($selectedCycle->end_date)->format('M d, Y') }})
+                    @else
+                        Quantitative appraisal metrics and teacher score publishing
+                    @endif
+                </p>
             </div>
         </div>
 
         <div class="flex items-center gap-3">
-            <a href="{{ route('admin.evaluations.periods') }}" class="px-5 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-black text-xs uppercase tracking-wider transition">
-                Manage Questions & Cycles
+            <form method="GET" action="{{ route('admin.evaluations.results') }}" class="flex items-center gap-2">
+                <select name="cycle_id" onchange="this.form.submit()" class="px-4 py-2.5 rounded-xl bg-white border-2 border-slate-200 text-xs font-black text-slate-800 outline-none focus:border-[#8b1818]">
+                    <option value="">-- Select Evaluation Cycle --</option>
+                    @foreach($allCycles ?? [] as $cycleItem)
+                        <option value="{{ $cycleItem->id }}" {{ (isset($selectedCycle) && $selectedCycle->id == $cycleItem->id) ? 'selected' : '' }}>
+                            {{ $cycleItem->name }} (SY {{ $cycleItem->school_year }})
+                        </option>
+                    @endforeach
+                </select>
+            </form>
+            <a href="{{ route('admin.evaluations.history') }}" class="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-black text-xs uppercase tracking-wider transition">
+                <i class="fa-solid fa-clock-rotate-left mr-1"></i> History
             </a>
         </div>
     </header>
 
     <main class="max-w-7xl mx-auto pt-8 px-4 sm:px-6 lg:px-8 space-y-8">
         
+        @if(session('success'))
+            <div class="p-4 bg-emerald-50 border-2 border-emerald-300 text-emerald-900 text-xs font-bold rounded-2xl flex items-center justify-between shadow-xs">
+                <div class="flex items-center gap-2.5">
+                    <i class="fa-solid fa-circle-check text-emerald-600 text-base shrink-0"></i>
+                    <span>{{ session('success') }}</span>
+                </div>
+                <button @click="$el.parentElement.remove()" class="text-emerald-700 hover:text-emerald-950"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+        @endif
+
         <!-- Top Quantitative Number Cards -->
         <div class="grid grid-cols-2 lg:grid-cols-5 gap-4">
             <div class="bg-white border-2 border-slate-200 rounded-3xl p-5 shadow-xs">
@@ -56,7 +89,7 @@
             <div class="bg-white border-2 border-slate-200 rounded-3xl p-5 shadow-xs">
                 <p class="text-[10px] font-black uppercase text-slate-400">Total Submissions</p>
                 <h3 class="text-2xl font-black text-slate-900 mt-1">{{ $totalSubmissions }}</h3>
-                <span class="text-[11px] font-bold text-slate-500 mt-1 block">Peer Feedback Slips</span>
+                <span class="text-[11px] font-bold text-slate-500 mt-1 block">Feedback Slips</span>
             </div>
 
             <div class="bg-white border-2 border-slate-200 rounded-3xl p-5 shadow-xs">
@@ -78,7 +111,7 @@
             <div class="bg-white border-2 border-slate-200 rounded-3xl p-6 sm:p-7 shadow-xs flex flex-col justify-between space-y-4">
                 <div>
                     <h3 class="text-base font-black text-slate-900">Rating Distribution</h3>
-                    <p class="text-xs text-slate-500 font-bold">Faculty categorization based on mean score</p>
+                    <p class="text-xs text-slate-500 font-bold">Faculty categorization for this evaluation</p>
                 </div>
                 <div class="relative w-full h-56 flex items-center justify-center">
                     <canvas id="distributionChart"></canvas>
@@ -109,6 +142,9 @@
         <!-- Search Filter -->
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <form method="GET" action="{{ route('admin.evaluations.results') }}" class="relative max-w-md w-full">
+                @if(isset($selectedCycle) && $selectedCycle)
+                    <input type="hidden" name="cycle_id" value="{{ $selectedCycle->id }}">
+                @endif
                 <input type="text" 
                        name="search" 
                        value="{{ $search }}" 
@@ -118,7 +154,7 @@
             </form>
         </div>
 
-        <!-- Detailed Table -->
+        <!-- Detailed Table with Publish Controls -->
         <div class="bg-white border-2 border-slate-200 rounded-3xl overflow-hidden shadow-xs">
             <table class="w-full text-left border-collapse">
                 <thead>
@@ -128,6 +164,7 @@
                         <th class="py-4 px-6 text-center">Submissions</th>
                         <th class="py-4 px-6 text-center">Mean Score</th>
                         <th class="py-4 px-6 text-center">Descriptive Rating</th>
+                        <th class="py-4 px-6 text-center">Published Status</th>
                         <th class="py-4 px-6 text-right">Actions</th>
                     </tr>
                 </thead>
@@ -153,7 +190,7 @@
                                 @if($member->peer_count > 0)
                                     <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black bg-blue-50 text-blue-800 border border-blue-200">
                                         <i class="fa-solid fa-user-group text-[10px]"></i>
-                                        <span>{{ $member->peer_count }} {{ Str::plural('Peer', $member->peer_count) }}</span>
+                                        <span>{{ $member->peer_count }} {{ Str::plural('Submission', $member->peer_count) }}</span>
                                     </span>
                                 @else
                                     <span class="text-xs font-bold text-slate-400">0 Submissions</span>
@@ -174,6 +211,30 @@
                                     {{ $member->descriptor }}
                                 </span>
                             </td>
+                            <td class="py-4 px-6 text-center">
+                                @if(isset($selectedCycle) && $selectedCycle)
+                                    <form method="POST" action="{{ route('admin.evaluations.toggle-publish') }}" class="inline-block">
+                                        @csrf
+                                        <input type="hidden" name="evaluation_cycle_id" value="{{ $selectedCycle->id }}">
+                                        <input type="hidden" name="teacher_id" value="{{ $member->id }}">
+                                        <input type="hidden" name="is_published" value="{{ $member->is_published ? 0 : 1 }}">
+                                        
+                                        @if($member->is_published)
+                                            <button type="submit" class="px-3 py-1 rounded-full text-xs font-black bg-emerald-100 text-emerald-900 border border-emerald-300 hover:bg-emerald-200 transition flex items-center gap-1.5 mx-auto" title="Click to Unpublish result from Teacher Dashboard">
+                                                <i class="fa-solid fa-circle-check text-emerald-600"></i>
+                                                <span>Published</span>
+                                            </button>
+                                        @else
+                                            <button type="submit" class="px-3 py-1 rounded-full text-xs font-black bg-slate-100 text-slate-600 border border-slate-300 hover:bg-slate-200 transition flex items-center gap-1.5 mx-auto" title="Click to Publish result to Teacher Dashboard">
+                                                <i class="fa-solid fa-circle-xmark text-slate-400"></i>
+                                                <span>Unpublished</span>
+                                            </button>
+                                        @endif
+                                    </form>
+                                @else
+                                    <span class="text-xs text-slate-400 italic">Select Cycle</span>
+                                @endif
+                            </td>
                             <td class="py-4 px-6 text-right">
                                 <button @click="openBreakdown({{ json_encode($member) }})" 
                                         class="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-black uppercase tracking-wider transition">
@@ -183,7 +244,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="6" class="py-12 text-center text-xs font-bold text-slate-400">
+                            <td colspan="7" class="py-12 text-center text-xs font-bold text-slate-400">
                                 No faculty records found matching your search query.
                             </td>
                         </tr>
@@ -203,7 +264,7 @@
                     </div>
                     <div>
                         <h3 class="text-lg font-black text-slate-900" x-text="selectedFaculty ? selectedFaculty.name : ''"></h3>
-                        <p class="text-xs font-bold text-slate-400">Peer Evaluation Remarks & Rating Summary</p>
+                        <p class="text-xs font-bold text-slate-400">Evaluation Remarks & Rating Summary</p>
                     </div>
                 </div>
                 <button @click="detailModal = false" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-lg"></i></button>
@@ -250,81 +311,56 @@
 
 </div>
 
-<!-- Chart Initialization Script -->
 <script>
-document.addEventListener("DOMContentLoaded", function () {
-    // 1. Distribution Doughnut Chart
-    const distCtx = document.getElementById("distributionChart");
-    if (distCtx) {
-        new Chart(distCtx, {
-            type: "doughnut",
-            data: {
-                labels: ["Outstanding", "Very Satisfactory", "Satisfactory", "Needs Improvement", "Pending"],
-                datasets: [{
-                    data: {{ json_encode($distributionValues) }},
-                    backgroundColor: ["#10b981", "#3b82f6", "#f59e0b", "#ef4444", "#cbd5e1"],
-                    borderWidth: 2,
-                    borderColor: "#ffffff"
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: { display: false }
-                },
-                cutout: "70%"
-            }
-        });
-    }
+    document.addEventListener('DOMContentLoaded', function() {
+        const labels = @json($barLabels ?? []);
+        const scores = @json($barScores ?? []);
+        const distValues = @json($distributionValues ?? [0,0,0,0,0]);
 
-    // 2. Faculty Comparison Bar Chart
-    const compCtx = document.getElementById("comparisonChart");
-    if (compCtx) {
-        new Chart(compCtx, {
-            type: "bar",
-            data: {
-                labels: {!! json_encode($barLabels) !!},
-                datasets: [{
-                    label: "Mean Score",
-                    data: {{ json_encode($barScores) }},
-                    backgroundColor: "#8b1818",
-                    hoverBackgroundColor: "#731414",
-                    borderRadius: 8,
-                    maxBarThickness: 36
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        max: 5.0,
-                        ticks: {
-                            stepSize: 1.0,
-                            font: { weight: "bold", size: 11 }
-                        },
-                        grid: { color: "#f1f5f9" }
-                    },
-                    x: {
-                        ticks: { font: { weight: "bold", size: 11 } },
-                        grid: { display: false }
-                    }
+        const distCtx = document.getElementById('distributionChart');
+        if (distCtx) {
+            new Chart(distCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Outstanding', 'Very Satisfactory', 'Satisfactory', 'Needs Improvement', 'Pending'],
+                    datasets: [{
+                        data: distValues,
+                        backgroundColor: ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#cbd5e1'],
+                        borderWidth: 2,
+                        borderColor: '#ffffff'
+                    }]
                 },
-                plugins: {
-                    legend: { display: false },
-                    tooltip: {
-                        callbacks: {
-                            label: function(ctx) {
-                                return "Mean Score: " + Number(ctx.raw).toFixed(2) + " / 5.00";
-                            }
-                        }
-                    }
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } }
                 }
-            }
-        });
-    }
-});
+            });
+        }
+
+        const compCtx = document.getElementById('comparisonChart');
+        if (compCtx) {
+            new Chart(compCtx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Mean Rating',
+                        data: scores,
+                        backgroundColor: '#8b1818',
+                        borderRadius: 8
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: { min: 0, max: 5, ticks: { stepSize: 1 } }
+                    },
+                    plugins: { legend: { display: false } }
+                }
+            });
+        }
+    });
 </script>
 @endsection
