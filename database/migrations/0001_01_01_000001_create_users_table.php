@@ -12,21 +12,27 @@ return new class extends Migration
         Schema::create('users', function (Blueprint $table) {
             $table->id();
             $table->string('id_number', 50)->nullable()->unique();
+            $table->string('student_id', 50)->nullable();
             $table->foreignId('role_id')->constrained('roles')->onDelete('cascade');
+            $table->foreignId('academic_period_id')->nullable()->constrained('academic_periods')->nullOnDelete();
             $table->string('first_name');
+            $table->string('middle_name', 100)->nullable();
             $table->string('last_name');
-            $table->string('gender', 20)->nullable(); // Changed to string to accept 'Male' or 'Female' from forms
+            $table->string('gender', 20)->nullable();
             $table->string('email')->unique();
             $table->string('phone_number')->nullable();
             $table->string('parent_name')->nullable();
+            $table->string('parent_relationship', 50)->nullable();
             $table->string('parent_phone_number')->nullable();
             $table->unsignedTinyInteger('grade_level')->nullable();
             $table->string('strand')->nullable();
-            $table->string('section')->nullable(); // Changed to string to support section names/numbers cleanly
+            $table->string('section')->nullable();
             $table->string('password');
             $table->boolean('is_active')->default(true);
             $table->rememberToken();
             $table->timestamps();
+
+            $table->index(['role_id', 'academic_period_id'], 'users_role_period_index');
         });
 
         DB::table('users')->insert([
@@ -42,7 +48,7 @@ return new class extends Migration
             'grade_level'         => null,
             'strand'              => null,
             'section'             => null,
-            'password'            => 'AdminPass2026!',
+            'password'            => bcrypt('AdminPass2026!'),
             'is_active'           => true,
             'created_at'          => now(),
             'updated_at'          => now(),

@@ -13,40 +13,7 @@ class AdminEvaluationController extends Controller
 {
     public function index(Request $request)
     {
-        $search = trim((string) $request->query('search'));
-        $sectionFilter = $request->query('section');
-
-        // Fetch active academic period or fallback
-        $activePeriod = Schema::hasTable('academic_periods')
-            ? DB::table('academic_periods')->where('is_active', 1)->first()
-            : null;
-
-        $activeSchoolYear = $activePeriod->school_year ?? '2026-2027';
-
-        // Fetch sections for filters if table exists
-        $sections = Schema::hasTable('academic_sections')
-            ? DB::table('academic_sections')->pluck('section_name')->toArray()
-            : [];
-
-        // KPI metrics
-        $totalFaculty = User::where('role_id', 2)->count(); // Role 2 = Faculty/Teacher
-        $totalEvaluations = Schema::hasTable('peer_evaluations') ? DB::table('peer_evaluations')->count() : 0;
-        
-        $averageScore = Schema::hasTable('peer_evaluations') 
-            ? DB::table('peer_evaluations')->avg('average_score') ?? 0.0 
-            : 0.0;
-
-        $totalStudents = User::where('role_id', 3)->count(); // Role 3 = Student
-        $evalProgress = $totalStudents > 0 ? min(100, round(($totalEvaluations / max(1, $totalStudents * $totalFaculty)) * 100)) : 0;
-
-        return view('admin.evaluations.index', compact(
-            'activeSchoolYear',
-            'sections',
-            'totalEvaluations',
-            'totalFaculty',
-            'averageScore',
-            'evalProgress'
-        ));
+        return redirect()->route('admin.evaluations.results');
     }
 
     public function seedOfficialQuestions($type = null)
@@ -184,6 +151,9 @@ class AdminEvaluationController extends Controller
         $activeCycle = Schema::hasTable('evaluation_cycles')
             ? DB::table('evaluation_cycles')->where('status', 'active')->where('is_active', 1)->orderBy('id', 'desc')->first()
             : null;
+        $activeSchoolYear = Schema::hasTable('academic_periods')
+            ? DB::table('academic_periods')->where('is_active', 1)->value('school_year')
+            : null;
 
         $selectedType = $request->query('type', 'principal');
 
@@ -192,8 +162,20 @@ class AdminEvaluationController extends Controller
             $this->seedOfficialQuestions($selectedType);
         }
 
-        $allQuestions = DB::table('evaluation_questions')
-            ->where('form_type', $selectedType)
+        $activeForm = Schema::hasTable('evaluation_forms')
+            ? DB::table('evaluation_forms')
+                ->where('form_type', $selectedType)
+                ->where('is_active', 1)
+                ->orderByDesc('id')
+                ->first()
+            : null;
+
+        $allQuestionsQuery = DB::table('evaluation_questions')
+            ->where('form_type', $selectedType);
+        if ($activeForm && Schema::hasColumn('evaluation_questions', 'form_id')) {
+            $allQuestionsQuery->where('form_id', $activeForm->id);
+        }
+        $allQuestions = $allQuestionsQuery
             ->orderBy('order_num', 'asc')
             ->orderBy('id', 'asc')
             ->get();
@@ -207,20 +189,35 @@ class AdminEvaluationController extends Controller
             ->values()
             ->toArray();
 
-        $counts = [
-            'principal' => DB::table('evaluation_questions')->where('form_type', 'principal')->count(),
-            'peer'      => DB::table('evaluation_questions')->where('form_type', 'peer')->count(),
-            'student'   => DB::table('evaluation_questions')->where('form_type', 'student')->count(),
-            'self'      => DB::table('evaluation_questions')->where('form_type', 'self')->count(),
-        ];
+        $counts = [];
+        $versionCounts = [];
+        foreach (['principal', 'peer', 'student', 'self'] as $formType) {
+            $form = DB::table('evaluation_forms')
+                ->where('form_type', $formType)
+                ->where('is_active', 1)
+                ->orderByDesc('id')
+                ->first();
+
+            $questionQuery = DB::table('evaluation_questions')->where('form_type', $formType);
+            if ($form && Schema::hasColumn('evaluation_questions', 'form_id')) {
+                $questionQuery->where('form_id', $form->id);
+            }
+            $counts[$formType] = $questionQuery->where('is_active', 1)->count();
+            $versionCounts[$formType] = ($form && Schema::hasTable('evaluation_form_versions'))
+                ? DB::table('evaluation_form_versions')->where('form_id', $form->id)->count()
+                : 0;
+        }
 
         return view('admin.evaluations.periods', compact(
             'activeCycle', 
+            'activeSchoolYear',
             'allQuestions', 
             'groupedQuestions', 
             'allCategories', 
             'selectedType', 
-            'counts'
+            'activeForm',
+            'counts',
+            'versionCounts'
         ));
     }
 
@@ -326,7 +323,11 @@ class AdminEvaluationController extends Controller
                         $sub->questions = DB::table('evaluation_questions')
                             ->where('subheading_id', $sub->id)
                             ->orderBy('order_num', 'asc')
-                            ->get();
+                            ->get()
+                            ->map(function ($question) {
+                                $question->options = $this->normalizeOptions($question->options);
+                                return $question;
+                            });
                         return $sub;
                     });
 
@@ -334,13 +335,25 @@ class AdminEvaluationController extends Controller
                     ->where('section_id', $sec->id)
                     ->whereNull('subheading_id')
                     ->orderBy('order_num', 'asc')
-                    ->get();
+                    ->get()
+                    ->map(function ($question) {
+                        $question->options = $this->normalizeOptions($question->options);
+                        return $question;
+                    });
 
                 return $sec;
             });
 
+        $formVersions = Schema::hasTable('evaluation_form_versions')
+            ? DB::table('evaluation_form_versions')
+                ->where('form_id', $form->id)
+                ->orderByDesc('version')
+                ->limit(10)
+                ->get()
+            : collect();
+
         return view('admin.evaluations.edit-form', compact(
-            'form', 'type', 'formTypeName', 'ratingScales', 'sections'
+            'form', 'type', 'formTypeName', 'ratingScales', 'sections', 'formVersions'
         ));
     }
 
@@ -371,6 +384,26 @@ class AdminEvaluationController extends Controller
                 ]);
             } else {
                 $formId = $form->id;
+                if (Schema::hasTable('evaluation_form_versions')) {
+                    $snapshot = [
+                        'title' => $form->title,
+                        'instructions' => $form->instructions,
+                        'rating_scales' => DB::table('evaluation_rating_scales')
+                            ->where('form_id', $formId)
+                            ->orderBy('order_num')
+                            ->get()
+                            ->map(fn ($scale) => [
+                                'value' => $scale->value,
+                                'label' => $scale->label,
+                                'order_num' => $scale->order_num,
+                            ])->values()->all(),
+                        'sections' => $this->formSectionsPayload($formId),
+                    ];
+                    DB::table('evaluation_form_versions')->updateOrInsert(
+                        ['form_id' => $formId, 'version' => $form->version],
+                        ['payload' => json_encode($snapshot), 'created_at' => now(), 'updated_at' => now()]
+                    );
+                }
                 DB::table('evaluation_forms')->where('id', $formId)->update([
                     'title'        => $request->title,
                     'instructions' => $request->instructions,
@@ -398,6 +431,10 @@ class AdminEvaluationController extends Controller
 
             // Save Sections, Subheadings, Questions
             $oldSecIds = DB::table('evaluation_sections')->where('form_id', $formId)->pluck('id')->toArray();
+            // Questions are replaced together with their section hierarchy. The
+            // previous implementation removed sections but left their questions,
+            // so every save appended another copy to the preview.
+            DB::table('evaluation_questions')->where('form_id', $formId)->delete();
             DB::table('evaluation_subheadings')->whereIn('section_id', $oldSecIds)->delete();
             DB::table('evaluation_sections')->where('form_id', $formId)->delete();
 
@@ -426,7 +463,7 @@ class AdminEvaluationController extends Controller
                                 'category'      => trim($secData['title']),
                                 'question'      => trim($qData['question']),
                                 'type'          => $qData['type'] ?? 'likert',
-                                'options'       => isset($qData['options']) ? json_encode($qData['options']) : null,
+                                'options'       => $this->encodeOptions($qData['options'] ?? null),
                                 'is_required'   => isset($qData['is_required']) ? (bool)$qData['is_required'] : true,
                                 'order_num'     => $qIdx + 1,
                                 'is_active'     => 1,
@@ -461,7 +498,7 @@ class AdminEvaluationController extends Controller
                                         'category'      => trim($secData['title']) . ' - ' . trim($subData['title']),
                                         'question'      => trim($qData['question']),
                                         'type'          => $qData['type'] ?? 'likert',
-                                        'options'       => isset($qData['options']) ? json_encode($qData['options']) : null,
+                                        'options'       => $this->encodeOptions($qData['options'] ?? null),
                                         'is_required'   => isset($qData['is_required']) ? (bool)$qData['is_required'] : true,
                                         'order_num'     => $qIdx + 1,
                                         'is_active'     => 1,
@@ -487,6 +524,110 @@ class AdminEvaluationController extends Controller
         return back()->with('success', '✓ Evaluation form for ' . $formTypeName . ' updated successfully.');
     }
 
+    public function restoreFormVersion(string $type, int $version)
+    {
+        $form = DB::table('evaluation_forms')->where('form_type', $type)->where('is_active', 1)->firstOrFail();
+        $archive = DB::table('evaluation_form_versions')
+            ->where('form_id', $form->id)
+            ->where('version', $version)
+            ->firstOrFail();
+        $payload = json_decode($archive->payload, true);
+
+        $request = Request::create('', 'POST', [
+            'title' => $payload['title'] ?? $form->title,
+            'instructions' => $payload['instructions'] ?? '',
+            'form_data' => json_encode([
+                'rating_scales' => $payload['rating_scales'] ?? [],
+                'sections' => $payload['sections'] ?? [],
+            ]),
+        ]);
+
+        return $this->saveForm($request, $type);
+    }
+
+    private function formSectionsPayload(int $formId): array
+    {
+        return DB::table('evaluation_sections')
+            ->where('form_id', $formId)
+            ->orderBy('order_num')
+            ->get()
+            ->map(function ($section) {
+                $subheadings = DB::table('evaluation_subheadings')
+                    ->where('section_id', $section->id)
+                    ->orderBy('order_num')
+                    ->get()
+                    ->map(function ($subheading) {
+                        return [
+                            'title' => $subheading->title,
+                            'description' => $subheading->description,
+                            'questions' => DB::table('evaluation_questions')
+                                ->where('subheading_id', $subheading->id)
+                                ->orderBy('order_num')
+                                ->get()
+                                ->map(fn ($question) => $this->questionPayload($question))
+                                ->values()->all(),
+                        ];
+                    })->values()->all();
+
+                return [
+                    'title' => $section->title,
+                    'description' => $section->description,
+                    'direct_questions' => DB::table('evaluation_questions')
+                        ->where('section_id', $section->id)
+                        ->whereNull('subheading_id')
+                        ->orderBy('order_num')
+                        ->get()
+                        ->map(fn ($question) => $this->questionPayload($question))
+                        ->values()->all(),
+                    'subheadings' => $subheadings,
+                ];
+            })->values()->all();
+    }
+
+    private function questionPayload($question): array
+    {
+        return [
+            'question' => $question->question,
+            'type' => $question->type ?? 'likert',
+            'options' => $this->normalizeOptions($question->options),
+            'is_required' => (bool) ($question->is_required ?? true),
+        ];
+    }
+
+    private function normalizeOptions($options): array
+    {
+        if (is_array($options)) {
+            return array_values(array_filter(array_map(
+                fn ($option) => trim((string) $option),
+                $options
+            ), fn ($option) => $option !== ''));
+        }
+
+        if ($options === null || trim((string) $options) === '') {
+            return [];
+        }
+
+        $value = trim((string) $options);
+        for ($attempt = 0; $attempt < 2; $attempt++) {
+            $decoded = json_decode($value, true);
+            if (is_array($decoded)) {
+                return $this->normalizeOptions($decoded);
+            }
+            if (!is_string($decoded)) {
+                break;
+            }
+            $value = trim($decoded);
+        }
+
+        return array_values(array_filter(array_map('trim', explode(',', $value))));
+    }
+
+    private function encodeOptions($options): ?string
+    {
+        $normalized = $this->normalizeOptions($options);
+        return $normalized ? json_encode($normalized) : null;
+    }
+
     public function resetQuestions(Request $request)
     {
         $type = $request->input('form_type', 'principal');
@@ -496,12 +637,32 @@ class AdminEvaluationController extends Controller
 
     public function startCycle(Request $request)
     {
+        $weightTotal = collect([
+            $request->input('student_weight'),
+            $request->input('principal_weight'),
+            $request->input('self_weight'),
+            $request->input('peer_weight'),
+        ])->map(fn ($weight) => (float) $weight)->sum();
+
         $request->validate([
             'name'        => 'required|string|max:255',
-            'school_year' => 'required|string|max:50',
+            'school_year' => 'nullable|string|max:50',
             'start_date'  => 'required|date',
             'end_date'    => 'required|date|after_or_equal:start_date',
+            'student_weight' => 'required|numeric|min:0|max:100',
+            'principal_weight' => 'required|numeric|min:0|max:100',
+            'self_weight' => 'required|numeric|min:0|max:100',
+            'peer_weight' => 'required|numeric|min:0|max:100',
         ]);
+
+        if (abs($weightTotal - 100) > 0.001) {
+            return back()->withInput()->with('error', 'Evaluation weights must total exactly 100%.');
+        }
+
+        $activePeriod = Schema::hasTable('academic_periods')
+            ? DB::table('academic_periods')->where('is_active', 1)->first()
+            : null;
+        $sy = !empty($request->school_year) ? trim($request->school_year) : ($activePeriod->school_year ?? '2026-2027');
 
         if (Schema::hasTable('evaluation_cycles')) {
             // Deactivate previous active cycles
@@ -512,11 +673,15 @@ class AdminEvaluationController extends Controller
             // Create new evaluation cycle
             $cycleId = DB::table('evaluation_cycles')->insertGetId([
                 'name'        => trim($request->name),
-                'school_year' => trim($request->school_year),
+                'school_year' => $sy,
                 'start_date'  => $request->start_date,
                 'end_date'    => $request->end_date,
                 'status'      => 'active',
                 'is_active'   => 1,
+                'student_weight' => $request->student_weight,
+                'principal_weight' => $request->principal_weight,
+                'self_weight' => $request->self_weight,
+                'peer_weight' => $request->peer_weight,
                 'created_at'  => now(),
                 'updated_at'  => now(),
             ]);
@@ -525,7 +690,7 @@ class AdminEvaluationController extends Controller
             Cache::put('active_evaluation_cycle_id', $cycleId);
         }
 
-        return back()->with('success', 'Evaluation "' . $request->name . '" for SY ' . $request->school_year . ' has been started successfully!');
+        return back()->with('success', 'Evaluation "' . $request->name . '" for SY ' . $sy . ' has been started successfully!');
     }
 
     public function endCycle($id)
@@ -578,14 +743,30 @@ class AdminEvaluationController extends Controller
             $principalCount = 0;
 
             if (Schema::hasTable('peer_evaluations')) {
-                $peerCount = DB::table('peer_evaluations')->where('evaluation_cycle_id', $c->id)->count();
+                $q = DB::table('peer_evaluations');
+                if (Schema::hasColumn('peer_evaluations', 'evaluation_cycle_id')) {
+                    $q->where('evaluation_cycle_id', $c->id);
+                }
+                $peerCount = $q->count();
             }
             if (Schema::hasTable('self_evaluations')) {
-                $selfCount = DB::table('self_evaluations')->where('evaluation_cycle_id', $c->id)->count();
+                $q = DB::table('self_evaluations');
+                if (Schema::hasColumn('self_evaluations', 'evaluation_cycle_id')) {
+                    $q->where('evaluation_cycle_id', $c->id);
+                }
+                $selfCount = $q->count();
             }
             if (Schema::hasTable('evaluation_submissions')) {
-                $studentCount = DB::table('evaluation_submissions')->where('evaluation_cycle_id', $c->id)->where('form_type', 'student')->count();
-                $principalCount = DB::table('evaluation_submissions')->where('evaluation_cycle_id', $c->id)->where('form_type', 'principal')->count();
+                $q = DB::table('evaluation_submissions');
+                if (Schema::hasColumn('evaluation_submissions', 'evaluation_cycle_id')) {
+                    $q->where('evaluation_cycle_id', $c->id);
+                }
+                if (Schema::hasColumn('evaluation_submissions', 'form_type')) {
+                    $studentCount = (clone $q)->where('form_type', 'student')->count();
+                    $principalCount = (clone $q)->where('form_type', 'principal')->count();
+                } else {
+                    $studentCount = $q->count();
+                }
             }
 
             $c->peer_count = $peerCount;
@@ -643,6 +824,51 @@ class AdminEvaluationController extends Controller
         }
 
         return back()->with('success', 'Teacher result publishing status updated successfully!');
+    }
+
+    public function toggleAllTeacherPublish(Request $request)
+    {
+        $request->validate([
+            'evaluation_cycle_id' => 'required|integer',
+            'is_published'        => 'required|boolean'
+        ]);
+
+        $cycleId   = $request->evaluation_cycle_id;
+        $published = $request->is_published;
+
+        $allFacultyIds = User::where('role_id', 2)->pluck('id')->toArray();
+        $now = now();
+
+        if (Schema::hasTable('teacher_evaluation_publications')) {
+            foreach ($allFacultyIds as $tId) {
+                $existing = DB::table('teacher_evaluation_publications')
+                    ->where('evaluation_cycle_id', $cycleId)
+                    ->where('teacher_id', $tId)
+                    ->first();
+
+                if ($existing) {
+                    DB::table('teacher_evaluation_publications')
+                        ->where('id', $existing->id)
+                        ->update([
+                            'is_published' => $published ? 1 : 0,
+                            'published_at' => $published ? $now : null,
+                            'updated_at'   => $now
+                        ]);
+                } else {
+                    DB::table('teacher_evaluation_publications')->insert([
+                        'evaluation_cycle_id' => $cycleId,
+                        'teacher_id'          => $tId,
+                        'is_published'        => $published ? 1 : 0,
+                        'published_at'        => $published ? $now : null,
+                        'created_at'          => $now,
+                        'updated_at'          => $now
+                    ]);
+                }
+            }
+        }
+
+        $msg = $published ? 'All faculty evaluation results published to teacher portals successfully!' : 'All faculty evaluation results unpublished!';
+        return back()->with('success', $msg);
     }
 
     public function savePeriod(Request $request)
@@ -864,6 +1090,13 @@ class AdminEvaluationController extends Controller
             $selectedCycle = $allCycles->firstWhere('status', 'active') ?? $allCycles->first();
         }
 
+        $weights = [
+            'student' => (float) ($selectedCycle->student_weight ?? 40),
+            'principal' => (float) ($selectedCycle->principal_weight ?? 40),
+            'self' => (float) ($selectedCycle->self_weight ?? 10),
+            'peer' => (float) ($selectedCycle->peer_weight ?? 10),
+        ];
+
         $query = User::where('role_id', 2);
 
         if ($search) {
@@ -876,26 +1109,122 @@ class AdminEvaluationController extends Controller
 
         $allFaculty = $query->orderBy('last_name', 'asc')->get();
 
+        // Fetch section advisorship mapping if table exists
+        $adviserSections = collect([]);
+        if (Schema::hasTable('academic_sections')) {
+            $advisorCol = Schema::hasColumn('academic_sections', 'advisor_id') ? 'advisor_id' : (Schema::hasColumn('academic_sections', 'adviser_id') ? 'adviser_id' : null);
+            if ($advisorCol) {
+                $adviserSections = DB::table('academic_sections')
+                    ->whereNotNull($advisorCol)
+                    ->get()
+                    ->groupBy($advisorCol)
+                    ->map(function($secGroup) {
+                        return $secGroup->map(function($sec) {
+                            $name = $sec->section_name;
+                            if (!empty($sec->grade_level)) {
+                                $name = $sec->grade_level . ' - ' . $name;
+                            }
+                            return $name;
+                        })->implode(', ');
+                    });
+            }
+        }
+
+        // Fetch subject teacher mapping if table exists
+        $subjectTeachers = [];
+        if (Schema::hasTable('class_schedules')) {
+            $tCol = Schema::hasColumn('class_schedules', 'teacher_id') ? 'teacher_id' : (Schema::hasColumn('class_schedules', 'user_id') ? 'user_id' : null);
+            if ($tCol) {
+                $subjectTeachers = DB::table('class_schedules')
+                    ->whereNotNull($tCol)
+                    ->distinct($tCol)
+                    ->pluck($tCol)
+                    ->toArray();
+            }
+        }
+
         $publications = ($selectedCycle && Schema::hasTable('teacher_evaluation_publications'))
             ? DB::table('teacher_evaluation_publications')->where('evaluation_cycle_id', $selectedCycle->id)->get()->keyBy('teacher_id')
             : collect([]);
 
         $totalSubmissions = 0;
-        $facultyMetrics = $allFaculty->map(function($teacher) use (&$totalSubmissions, $selectedCycle, $publications) {
-            $peerQuery = Schema::hasTable('peer_evaluations')
-                ? DB::table('peer_evaluations')->where('evaluatee_id', $teacher->id)
-                : null;
+        $facultyMetrics = $allFaculty->map(function($teacher) use (&$totalSubmissions, $selectedCycle, $publications, $adviserSections, $subjectTeachers, $weights) {
+            $peerCount = 0;
+            $studentCount = 0;
+            $selfCount = 0;
+            $principalCount = 0;
+            $peerAvg = null;
+            $studentAvg = null;
+            $principalAvg = null;
+            $selfAvg = null;
+            $comments = collect([]);
 
-            if ($peerQuery && $selectedCycle) {
-                $peerQuery->where('evaluation_cycle_id', $selectedCycle->id);
+            if (Schema::hasTable('peer_evaluations')) {
+                $peerQuery = DB::table('peer_evaluations')->where('evaluatee_id', $teacher->id);
+                if ($selectedCycle) {
+                    $peerQuery->where('evaluation_cycle_id', $selectedCycle->id);
+                }
+                $peerEvals = $peerQuery->get();
+                $peerCount = $peerEvals->count();
+                $peerAvg = $peerCount > 0 ? round($peerEvals->avg('average_score'), 2) : null;
+                $comments = $peerEvals->whereNotNull('comments')->pluck('comments')->filter()->values();
             }
 
-            $peerEvals = $peerQuery ? $peerQuery->get() : collect([]);
+            if (Schema::hasTable('self_evaluations')) {
+                $selfTeacherColumn = Schema::hasColumn('self_evaluations', 'teacher_id') ? 'teacher_id' : 'user_id';
+                $selfQuery = DB::table('self_evaluations')->where($selfTeacherColumn, $teacher->id);
+                if ($selectedCycle) {
+                    if (Schema::hasColumn('self_evaluations', 'evaluation_cycle_id')) {
+                        $selfQuery->where('evaluation_cycle_id', $selectedCycle->id);
+                    }
+                }
+                $selfEvaluations = $selfQuery->get();
+                $selfCount = $selfEvaluations->count();
+                $selfAvg = $selfCount > 0 ? round((float) $selfEvaluations->avg('average_score'), 2) : null;
+            }
 
-            $peerCount = $peerEvals->count();
-            $totalSubmissions += $peerCount;
-            $peerAvg = $peerCount > 0 ? round($peerEvals->avg('average_score'), 2) : null;
-            $comments = $peerEvals->whereNotNull('comments')->pluck('comments')->filter()->values();
+            if (Schema::hasTable('evaluation_submissions')) {
+                $subQuery = DB::table('evaluation_submissions');
+                if (Schema::hasColumn('evaluation_submissions', 'teacher_id')) {
+                    $subQuery->where('teacher_id', $teacher->id);
+                } elseif (Schema::hasColumn('evaluation_submissions', 'evaluatee_id')) {
+                    $subQuery->where('evaluatee_id', $teacher->id);
+                }
+                if ($selectedCycle && Schema::hasColumn('evaluation_submissions', 'evaluation_cycle_id')) {
+                    $subQuery->where('evaluation_cycle_id', $selectedCycle->id);
+                }
+
+                if (Schema::hasColumn('evaluation_submissions', 'form_type')) {
+                    $studentEvaluations = (clone $subQuery)->where('form_type', 'student')->get();
+                    $principalEvaluations = (clone $subQuery)->where('form_type', 'principal')->get();
+                    $studentCount = $studentEvaluations->count();
+                    $principalCount = $principalEvaluations->count();
+                    $studentAvg = $studentCount > 0 ? round((float) $studentEvaluations->avg('average_score'), 2) : null;
+                    $principalAvg = $principalCount > 0 ? round((float) $principalEvaluations->avg('average_score'), 2) : null;
+                    if ($selfCount === 0) {
+                        $selfEvaluations = (clone $subQuery)->where('form_type', 'self')->get();
+                        $selfCount = $selfEvaluations->count();
+                        $selfAvg = $selfCount > 0 ? round((float) $selfEvaluations->avg('average_score'), 2) : null;
+                    }
+                } else {
+                    $studentCount = $subQuery->count();
+                }
+            }
+
+            $teacherTotalSubmissions = $peerCount + $studentCount + $selfCount + $principalCount;
+            $totalSubmissions += $teacherTotalSubmissions;
+
+            $weightedScore = 0;
+            foreach ([
+                'student' => $studentAvg,
+                'principal' => $principalAvg,
+                'self' => $selfAvg,
+                'peer' => $peerAvg,
+            ] as $type => $average) {
+                if ($average !== null) {
+                    $weightedScore += ($average / 5) * $weights[$type];
+                }
+            }
 
             $descriptor = 'Pending';
             $badgeClass = 'bg-slate-100 text-slate-600 border-slate-200';
@@ -918,32 +1247,72 @@ class AdminEvaluationController extends Controller
 
             $pub = $publications->get($teacher->id);
             $isPublished = $pub ? (bool)$pub->is_published : false;
+            $publishedAt = ($pub && $pub->published_at) ? \Carbon\Carbon::parse($pub->published_at) : null;
+
+            $userSection = !empty($teacher->section) 
+                ? (!empty($teacher->grade_level) ? (preg_match('/grade/i', $teacher->grade_level) ? $teacher->grade_level : ('Grade ' . $teacher->grade_level)) . ' - ' . $teacher->section : $teacher->section)
+                : null;
+
+            $advisedSectionName = $userSection ?: $adviserSections->get($teacher->id);
+            $isSubjectTeacher = in_array($teacher->id, $subjectTeachers);
+
+            $roleDisplay = 'Subject Teacher';
+            $isAdviser = false;
+
+            if ($advisedSectionName) {
+                $isAdviser = true;
+                $roleDisplay = 'Adviser (' . $advisedSectionName . ')';
+            } elseif ($isSubjectTeacher) {
+                $roleDisplay = 'Subject Teacher';
+            }
 
             return (object) [
-                'id'           => $teacher->id,
-                'name'         => 'Prof. ' . $teacher->first_name . ' ' . $teacher->last_name,
-                'short_name'   => $teacher->last_name . ', ' . substr($teacher->first_name, 0, 1) . '.',
-                'first_name'   => $teacher->first_name,
-                'last_name'    => $teacher->last_name,
-                'email'        => $teacher->email,
-                'id_number'    => $teacher->id_number ?? 'N/A',
-                'peer_count'   => $peerCount,
-                'peer_avg'     => $peerAvg ? (float)$peerAvg : null,
-                'descriptor'   => $descriptor,
-                'badge_class'  => $badgeClass,
-                'comments'     => $comments,
-                'is_published' => $isPublished,
+                'id'                => $teacher->id,
+                'name'              => 'Prof. ' . $teacher->first_name . ' ' . $teacher->last_name,
+                'short_name'        => $teacher->last_name . ', ' . substr($teacher->first_name, 0, 1) . '.',
+                'first_name'        => $teacher->first_name,
+                'last_name'         => $teacher->last_name,
+                'email'             => $teacher->email,
+                'id_number'         => $teacher->id_number ?? 'N/A',
+                'peer_count'        => $peerCount,
+                'student_count'     => $studentCount,
+                'self_count'        => $selfCount,
+                'principal_count'   => $principalCount,
+                'total_submissions' => $teacherTotalSubmissions,
+                'peer_avg'          => $peerAvg ? (float)$peerAvg : null,
+                'student_avg'       => $studentAvg,
+                'principal_avg'     => $principalAvg,
+                'self_avg'          => $selfAvg,
+                'weighted_score'    => round($weightedScore, 2),
+                'student_weighted'  => $studentAvg !== null ? round(($studentAvg / 5) * $weights['student'], 2) : null,
+                'principal_weighted'=> $principalAvg !== null ? round(($principalAvg / 5) * $weights['principal'], 2) : null,
+                'self_weighted'     => $selfAvg !== null ? round(($selfAvg / 5) * $weights['self'], 2) : null,
+                'peer_weighted'     => $peerAvg !== null ? round(($peerAvg / 5) * $weights['peer'], 2) : null,
+                'descriptor'        => $descriptor,
+                'badge_class'       => $badgeClass,
+                'comments'          => $comments,
+                'is_published'      => $isPublished,
+                'published_at'      => $publishedAt,
+                'role_display'      => $roleDisplay,
+                'is_adviser'        => $isAdviser,
+                'advised_section'   => $advisedSectionName,
             ];
         });
 
         $totalFaculty = $facultyMetrics->count();
-        $totalEvaluated = $facultyMetrics->filter(fn($f) => $f->peer_count > 0)->count();
+        $totalEvaluated = $facultyMetrics->filter(fn($f) => $f->total_submissions > 0 || $f->peer_count > 0)->count();
         $completionRate = $totalFaculty > 0 ? round(($totalEvaluated / $totalFaculty) * 100, 1) : 0;
         
-        $scoredTeachers = $facultyMetrics->filter(fn($f) => $f->peer_avg !== null);
-        $overallInstMean = $scoredTeachers->count() > 0 ? number_format($scoredTeachers->avg('peer_avg'), 2) : '0.00';
-        $highestScore = $scoredTeachers->count() > 0 ? number_format($scoredTeachers->max('peer_avg'), 2) : '--';
-        $lowestScore = $scoredTeachers->count() > 0 ? number_format($scoredTeachers->min('peer_avg'), 2) : '--';
+        $scoredTeachers = $facultyMetrics->filter(fn($f) => $f->total_submissions > 0);
+        $overallInstMean = $scoredTeachers->count() > 0 ? number_format($scoredTeachers->avg('weighted_score'), 2) : '0.00';
+        $highestScore = $scoredTeachers->count() > 0 ? number_format($scoredTeachers->max('weighted_score'), 2) : '--';
+        $lowestScore = $scoredTeachers->count() > 0 ? number_format($scoredTeachers->min('weighted_score'), 2) : '--';
+
+        $publishedCount = $facultyMetrics->filter(fn($f) => $f->is_published)->count();
+        $lastPublishedRecord = $publications->where('is_published', 1)->sortByDesc('published_at')->first();
+        $lastPublishedAt = ($lastPublishedRecord && $lastPublishedRecord->published_at) 
+            ? \Carbon\Carbon::parse($lastPublishedRecord->published_at) 
+            : null;
 
         $distOutstanding = $facultyMetrics->filter(fn($f) => $f->peer_avg >= 4.50)->count();
         $distVerySat = $facultyMetrics->filter(fn($f) => $f->peer_avg >= 3.50 && $f->peer_avg < 4.50)->count();
@@ -952,13 +1321,13 @@ class AdminEvaluationController extends Controller
         $distPending = $totalFaculty - $totalEvaluated;
 
         $barLabels = $facultyMetrics->pluck('short_name')->toArray();
-        $barScores = $facultyMetrics->map(fn($f) => $f->peer_avg ?? 0)->toArray();
+        $barScores = $facultyMetrics->map(fn($f) => $f->weighted_score ?? 0)->toArray();
         $distributionValues = [$distOutstanding, $distVerySat, $distSat, $distNeedsImp, $distPending];
 
         return view('admin.evaluations.results', compact(
             'selectedCycle', 'allCycles', 'facultyMetrics', 'totalFaculty', 'totalEvaluated', 'completionRate',
-            'overallInstMean', 'highestScore', 'lowestScore', 'totalSubmissions',
-            'barLabels', 'barScores', 'distributionValues', 'search'
+            'overallInstMean', 'highestScore', 'lowestScore', 'totalSubmissions', 'publishedCount', 'lastPublishedAt',
+            'barLabels', 'barScores', 'distributionValues', 'search', 'weights'
         ));
     }
 }

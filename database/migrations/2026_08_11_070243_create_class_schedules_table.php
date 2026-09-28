@@ -28,7 +28,6 @@ public function up(): void
         
         $table->time('start_time');
         $table->time('end_time');
-        $table->string('room', 50)->nullable();
         $table->timestamps();
     });
 }

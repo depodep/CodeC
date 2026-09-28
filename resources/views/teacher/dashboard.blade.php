@@ -42,6 +42,28 @@
         </div>
     @endif
 
+    @if($activeEvaluationCycle)
+        <div class="mb-6 bg-emerald-50 border-2 border-emerald-200 rounded-xl p-5 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div class="flex items-start gap-3">
+                <div class="w-11 h-11 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
+                    <i class="fa-solid fa-clipboard-check text-lg"></i>
+                </div>
+                <div>
+                    <h3 class="text-emerald-900 font-black text-base">Faculty Evaluation is Open</h3>
+                    <p class="text-emerald-700 text-sm font-semibold mt-0.5">{{ $activeEvaluationCycle->name }}</p>
+                    <p class="text-emerald-600 text-xs font-medium mt-1">
+                        Submit your peer and self-evaluation before
+                        {{ \Carbon\Carbon::parse($activeEvaluationCycle->end_date)->format('M d, Y') }}.
+                    </p>
+                </div>
+            </div>
+            <a href="{{ route('teacher.evaluations.index') }}" class="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black transition shadow-sm shrink-0">
+                <i class="fa-solid fa-arrow-right"></i>
+                <span>Start Evaluation</span>
+            </a>
+        </div>
+    @endif
+
     <!-- 4 TOP CARDS (SIATRACK Theme) -->
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         

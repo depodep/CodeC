@@ -3,6 +3,15 @@
 @section('title', 'Edit Evaluation Form - SIATRACK Admin')
 
 @section('content')
+<style>
+    #evaluation-editor-actions {
+        left: 18rem;
+    }
+
+    html.sidebar-collapsed #evaluation-editor-actions {
+        left: 5rem;
+    }
+</style>
 <div x-data="formBuilder()" class="w-full min-h-screen bg-slate-100/60 pb-28 font-sans">
     
     <!-- Top Header -->
@@ -20,19 +29,24 @@
                     </span>
                     <span class="text-[11px] font-bold text-slate-400">&bull; Version {{ $form->version ?? 1 }}</span>
                 </div>
+                @if(isset($formVersions) && $formVersions->isNotEmpty())
+                    <details class="mt-2 text-[10px] font-bold text-slate-500">
+                        <summary class="cursor-pointer text-[#8b1818]">Previous saved versions</summary>
+                        <div class="mt-2 flex flex-wrap gap-1.5">
+                            @foreach($formVersions as $formVersion)
+                                <form method="POST" action="{{ route('admin.evaluations.forms.versions.restore', ['type' => $type, 'version' => $formVersion->version]) }}" onsubmit="return confirm('Restore version {{ $formVersion->version }}? The current form will be archived first.');">
+                                    @csrf
+                                    <button type="submit" class="rounded-lg border border-slate-200 bg-white px-2 py-1 hover:border-[#8b1818] hover:text-[#8b1818]">
+                                        v{{ $formVersion->version }} · {{ \Carbon\Carbon::parse($formVersion->created_at)->format('M d, Y') }}
+                                    </button>
+                                </form>
+                            @endforeach
+                        </div>
+                    </details>
+                @endif
             </div>
         </div>
 
-        <div class="flex items-center gap-2.5 shrink-0">
-            <button type="button" @click="previewModal = true" class="px-3.5 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition flex items-center gap-2">
-                <i class="fa-solid fa-eye text-blue-600 text-xs"></i>
-                <span>Preview Form</span>
-            </button>
-            <button type="button" @click="submitForm()" class="px-5 py-2.5 rounded-xl bg-[#8b1818] hover:bg-[#731414] text-white font-black text-xs uppercase tracking-wider transition shadow-md shadow-red-950/20 flex items-center gap-2">
-                <i class="fa-solid fa-floppy-disk text-amber-300 text-xs"></i>
-                <span>Save Changes</span>
-            </button>
-        </div>
     </header>
 
     <main class="max-w-6xl mx-auto pt-6 px-4 sm:px-6 lg:px-8 space-y-6">
@@ -227,6 +241,7 @@
                                             <!-- Options for MCQ -->
                                             <div x-show="q.type === 'multiple_choice'" class="space-y-1.5 pt-1">
                                                 <label class="text-[10px] font-bold text-slate-400 block">Multiple Choice Options</label>
+                                                <p class="text-[10px] font-semibold text-slate-500">Enter one option per value, separated by commas. Example: Option 1, Option 2, Option 3.</p>
                                                 <input type="text" :value="q.options ? q.options.join(', ') : ''" @input="q.options = $event.target.value.split(',').map(s=>s.trim())" placeholder="Option 1, Option 2, Option 3 (comma separated)" class="w-full px-3 py-1 text-xs border border-slate-200 rounded-lg outline-none bg-white">
                                             </div>
                                         </div>
@@ -297,7 +312,8 @@
                                                         <!-- Options for MCQ -->
                                                         <div x-show="subQ.type === 'multiple_choice'" class="space-y-1.5 pt-1">
                                                             <label class="text-[10px] font-bold text-slate-400 block">Multiple Choice Options</label>
-                                                            <input type="text" :value="subQ.options ? subQ.options.join(', ') : ''" @input="subQ.options = $event.target.value.split(',').map(s=>s.trim())" placeholder="Option 1, Option 2, Option 3" class="w-full px-3 py-1 text-xs border border-slate-200 rounded-lg outline-none bg-white">
+                                                            <p class="text-[10px] font-semibold text-slate-500">Enter one option per value, separated by commas. Example: Option 1, Option 2, Option 3.</p>
+                                                            <input type="text" :value="subQ.options ? subQ.options.join(', ') : ''" @input="subQ.options = $event.target.value.split(',').map(s=>s.trim())" placeholder="Option 1, Option 2, Option 3 (comma separated)" class="w-full px-3 py-1 text-xs border border-slate-200 rounded-lg outline-none bg-white">
                                                         </div>
                                                     </div>
 
@@ -351,7 +367,7 @@
     </main>
 
     <!-- Sticky Bottom Bar -->
-    <div class="fixed bottom-0 inset-x-0 bg-white/95 backdrop-blur-md border-t border-slate-200 px-6 py-3.5 z-30 shadow-lg flex items-center justify-between">
+    <div id="evaluation-editor-actions" class="fixed right-0 bottom-0 bg-white/95 backdrop-blur-md border-t border-slate-200 px-6 py-3.5 z-30 shadow-lg flex items-center justify-between transition-[left] duration-300">
         <a href="{{ route('admin.evaluations.periods') }}" class="px-5 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs uppercase tracking-wider transition">Cancel</a>
         <div class="flex items-center gap-3">
             <button type="button" @click="previewModal = true" class="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs uppercase tracking-wider transition flex items-center gap-2">
@@ -538,11 +554,29 @@ function formBuilder() {
 
         getOptions(optVal) {
             if (Array.isArray(optVal)) {
-                const filtered = optVal.filter(s => s && String(s).trim().length > 0);
+                const filtered = optVal
+                    .flatMap(s => {
+                        if (typeof s !== 'string') return [s];
+                        try {
+                            const parsed = JSON.parse(s);
+                            return Array.isArray(parsed) ? parsed : [s];
+                        } catch (error) {
+                            return [s];
+                        }
+                    })
+                    .filter(s => s && String(s).trim().length > 0);
                 return filtered.length > 0 ? filtered : ['Option 1', 'Option 2'];
             }
             if (typeof optVal === 'string') {
-                const parsed = optVal.split(',').map(s => s.trim()).filter(s => s.length > 0);
+                let value = optVal.trim();
+                try {
+                    const decoded = JSON.parse(value);
+                    if (Array.isArray(decoded)) return this.getOptions(decoded);
+                    if (typeof decoded === 'string') value = decoded;
+                } catch (error) {
+                    // Treat legacy comma-separated values as-is.
+                }
+                const parsed = value.split(',').map(s => s.trim()).filter(s => s.length > 0);
                 return parsed.length > 0 ? parsed : ['Option 1', 'Option 2'];
             }
             return ['Option 1', 'Option 2'];

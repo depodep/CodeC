@@ -44,7 +44,7 @@ class AdminSmsController extends Controller
                 $smsQuery->where('sms_logs.school_year', $request->school_year);
             }
             if ($request->filled('status')) {
-                $smsQuery->where('sms_logs.status', $request->status);
+                $smsQuery->whereRaw('UPPER(sms_logs.status) = ?', [strtoupper($request->status)]);
             }
         }
 
@@ -67,9 +67,9 @@ class AdminSmsController extends Controller
         }
 
         $totalSentToday = $hasSmsTable ? (clone $smsQuery)->count() : 0;
-        $successSent = $hasSmsTable ? (clone $smsQuery)->where('status', 'Sent')->count() : 0;
-        $failedSent = $hasSmsTable ? (clone $smsQuery)->where('status', 'Failed')->count() : 0;
-        $pendingSent = $hasSmsTable ? (clone $smsQuery)->where('status', 'Pending')->count() : 0;
+        $successSent = $hasSmsTable ? (clone $smsQuery)->whereRaw('UPPER(sms_logs.status) = ?', ['SENT'])->count() : 0;
+        $failedSent = $hasSmsTable ? (clone $smsQuery)->whereRaw('UPPER(sms_logs.status) = ?', ['FAILED'])->count() : 0;
+        $pendingSent = $hasSmsTable ? (clone $smsQuery)->whereRaw('UPPER(sms_logs.status) = ?', ['PENDING'])->count() : 0;
 
         $absentStudentsCount = 0;
         if ($hasAttendance) {
@@ -163,6 +163,17 @@ class AdminSmsController extends Controller
             $detailedLogs = DB::table('sms_logs')
                 ->join('users', 'sms_logs.user_id', '=', 'users.id')
                 ->whereDate('sms_logs.created_at', $today)
+                ->when($request->filled('school_year'), fn ($q) => $q->where('sms_logs.academic_year', $request->school_year))
+                ->when($request->filled('status'), fn ($q) => $q->whereRaw('UPPER(sms_logs.status) = ?', [strtoupper($request->status)]))
+                ->when($request->filled('section'), fn ($q) => $q->where('users.section', $request->section))
+                ->when($request->filled('search'), function ($q) use ($request) {
+                    $search = $request->search;
+                    $q->where(function ($sub) use ($search) {
+                        $sub->where('users.first_name', 'like', "%{$search}%")
+                            ->orWhere('users.last_name', 'like', "%{$search}%")
+                            ->orWhere('users.id_number', 'like', "%{$search}%");
+                    });
+                })
                 ->select('sms_logs.*', 'users.first_name', 'users.last_name', 'users.id_number', 'users.section', DB::raw("coalesce({$parentColForLogs}, 'Parent') as parent_name"))
                 ->latest('sms_logs.created_at')
                 ->paginate(15)
@@ -204,7 +215,7 @@ class AdminSmsController extends Controller
             );
         }
 
-        return redirect()->route('admin.dashboard.analytics.sent-today')->with('success', 'Absence SMS template updated successfully.');
+        return redirect()->route('admin.sms.sent-today')->with('success', 'Absence SMS template updated successfully.');
     }
 
     public function retry(Request $request, $id)

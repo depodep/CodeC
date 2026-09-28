@@ -19,7 +19,7 @@
 @endphp
 
 <!-- ================= Unified SIATRACK Sidebar (Fixed Height) ================= -->
-<aside class="w-72 bg-[#8b1818] text-white flex flex-col justify-between shrink-0 h-full shadow-xl z-30">
+<aside class="w-72 bg-[#8b1818] text-white flex flex-col justify-between shrink-0 h-screen sticky top-0 overflow-hidden shadow-xl z-30">
     <div>
         <!-- Brand Header -->
         <div class="p-6 border-b border-white/10 flex items-center gap-3.5">
@@ -85,7 +85,7 @@
 </aside>
 
 <!-- ================= Main Fixed-Screen Content Area ================= -->
-<main class="flex-1 flex flex-col h-full min-w-0 overflow-hidden">
+<main class="flex-1 flex flex-col h-screen min-h-0 min-w-0 overflow-y-auto">
 
     <!-- Top Header Bar with Clickable Profile & Dropdown -->
     <header class="bg-white border-b border-slate-200 px-8 lg:px-12 py-3.5 flex items-center justify-between shrink-0 z-20 shadow-xs">
@@ -116,13 +116,17 @@
                  class="hidden absolute right-0 mt-3 w-64 bg-white rounded-3xl border-2 border-slate-200 shadow-2xl p-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
                 <div class="px-4 py-3 border-b border-slate-100">
                     <p class="text-sm font-black text-slate-900 truncate">{{ $student->first_name }} {{ $student->last_name }}</p>
-                    <p class="text-xs font-semibold text-slate-400 truncate mt-0.5">{{ $student->email }}</p>
+                    <p class="text-xs font-semibold text-slate-400 truncate mt-0.5">{{ $student->username }}</p>
                     <span class="inline-block mt-2 px-2.5 py-1 rounded-lg text-xs font-mono font-black bg-red-50 text-[#8b1818] border border-red-200">
                         {{ $student->id_number ?? 'LRN Not Set' }}
                     </span>
                 </div>
 
                 <div class="pt-2">
+                    <a href="{{ route('student.profile.edit') }}" class="w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-xs font-black text-slate-700 hover:bg-slate-50 transition">
+                        <i class="fa-solid fa-user-gear text-sm text-[#8b1818]"></i>
+                        <span>Account Settings</span>
+                    </a>
                     <form method="POST" action="{{ route('logout') }}">
                         @csrf
                         <button type="submit" 
@@ -137,32 +141,52 @@
     </header>
 
     <!-- Fixed Workspace Body -->
-    <div class="flex-1 p-6 lg:p-8 max-w-7xl w-full mx-auto flex flex-col gap-6 min-h-0 overflow-hidden">
+    <div class="flex-1 p-6 lg:p-8 max-w-7xl w-full mx-auto flex flex-col gap-6 min-h-0">
 
         <!-- Student Master Information Banner (Direct Registration Data) -->
         <div class="bg-white rounded-3xl border-2 border-slate-200 p-6 lg:p-7 shadow-xs space-y-1.5 shrink-0">
-            <h1 class="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight uppercase">
-                {{ $student->id_number ?? 'T' . date('Y') . $student->id }} {{ $student->last_name }}, {{ $student->first_name }}
-            </h1>
-            <p class="text-sm font-bold text-blue-600">
-                {{ $student->email }}
-            </p>
+            <p class="text-[10px] font-black uppercase tracking-wider text-slate-400">Student Name</p>
+            <h1 class="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">{{ $student->first_name }} {{ $student->middle_name }} {{ $student->last_name }}</h1>
+            <p class="text-sm font-bold text-blue-600">Username: {{ $student->username }}</p>
             <p class="text-sm sm:text-base font-extrabold text-amber-700 leading-snug">
-                {{ $student->grade_level ?? 'Grade Level Not Set' }}
-                @if(!empty($student->strand))
-                    — {{ $student->strand }}
-                @endif
-                @if(!empty($student->section))
-                    (Section {{ $student->section }})
-                @endif
+                {{ $student->grade_level ?? 'Grade Level Not Set' }} | Section {{ $student->section ?? 'Not Assigned' }} | {{ $student->strand ?? 'Strand Not Set' }}
             </p>
             <p class="text-sm font-black text-[#8b1818]">
                 Southern Isabela Academy, Angadanan Campus
             </p>
         </div>
 
+        <!-- Attendance Statistics -->
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 shrink-0">
+            <div class="bg-white rounded-2xl border-2 border-slate-200 p-5 shadow-xs">
+                <p class="text-[10px] font-black uppercase tracking-wider text-slate-400">Overall Attendance Rate</p>
+                <div class="flex items-end gap-2 mt-2"><span class="text-3xl font-black text-[#8b1818]">{{ $attendanceRate }}%</span><span class="text-xs font-bold text-slate-400 mb-1">{{ $attendancePresent }}/{{ $attendanceTotal }} present</span></div>
+            </div>
+            <div class="bg-white rounded-2xl border-2 border-slate-200 p-5 shadow-xs">
+                <p class="text-[10px] font-black uppercase tracking-wider text-slate-400">Attendance Records</p>
+                <span class="block text-3xl font-black text-blue-700 mt-2">{{ $attendanceTotal }}</span>
+                <span class="text-xs font-semibold text-slate-500">Recorded attendance entries</span>
+            </div>
+            <div class="bg-white rounded-2xl border-2 border-slate-200 p-5 shadow-xs">
+                <p class="text-[10px] font-black uppercase tracking-wider text-slate-400">Enrolled Subjects</p>
+                <span class="block text-3xl font-black text-emerald-700 mt-2">{{ count($schedules) }}</span>
+                <span class="text-xs font-semibold text-slate-500">Current class schedules</span>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-3xl border-2 border-slate-200 shadow-xs shrink-0">
+            <div class="px-6 py-4 border-b-2 border-slate-100 flex items-center justify-between"><h2 class="text-lg font-black text-[#8b1818]">Attendance by Subject</h2><i class="fa-solid fa-chart-column text-amber-500"></i></div>
+            <div class="p-5 grid grid-cols-1 md:grid-cols-2 gap-3">
+                @forelse($subjectAttendance as $subject)
+                    <div class="p-4 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-between"><div><p class="text-sm font-black text-slate-800">{{ $subject->subject_name }}</p><p class="text-[11px] font-semibold text-slate-500">{{ $subject->rate === null ? 'No linked attendance records yet' : $subject->present . ' of ' . $subject->total . ' present' }}</p></div><span class="text-lg font-black {{ $subject->rate === null ? 'text-slate-400' : ($subject->rate >= 75 ? 'text-emerald-700' : 'text-rose-700') }}">{{ $subject->rate === null ? '--' : $subject->rate . '%' }}</span></div>
+                @empty
+                    <p class="md:col-span-2 text-xs font-semibold text-slate-500">No enrolled subjects found.</p>
+                @endforelse
+            </div>
+        </div>
+
         <!-- Full-Height Subject Details Section (Internal Scroll Area) -->
-        <div class="bg-white rounded-3xl border-2 border-slate-200 shadow-xs flex flex-col flex-1 min-h-0 overflow-hidden">
+        <div class="bg-white rounded-3xl border-2 border-slate-200 shadow-xs">
             
             <!-- Table Header Strip -->
             <div class="px-8 py-4 border-b-2 border-slate-100 flex items-center justify-between shrink-0">
@@ -173,8 +197,8 @@
             </div>
 
             <!-- Scrollable Content Table Box -->
-            <div class="p-6 flex-1 flex flex-col min-h-0">
-                <div class="border-2 border-slate-200 rounded-2xl flex-1 flex flex-col min-h-0 overflow-hidden shadow-2xs">
+            <div class="p-6">
+                <div class="border-2 border-slate-200 rounded-2xl shadow-2xs">
                     
                     <!-- Table Subheader Strip -->
                     <div class="bg-red-50/70 border-b-2 border-slate-200 px-8 py-3.5 flex items-center justify-between text-xs font-black text-slate-700 uppercase tracking-wider shrink-0">
@@ -183,7 +207,7 @@
                     </div>
 
                     <!-- Inner Scrollable Subject Rows Container -->
-                    <div class="divide-y-2 divide-slate-100 overflow-y-auto flex-1">
+                    <div class="divide-y-2 divide-slate-100">
                         @forelse($schedules as $index => $schedule)
                             <div class="p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-6 hover:bg-red-50/20 transition duration-150">
                                 

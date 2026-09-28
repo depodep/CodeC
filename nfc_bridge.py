@@ -1,4 +1,4 @@
-import ctypes
+﻿import ctypes
 from ctypes import wintypes
 import urllib.request
 import json
@@ -28,6 +28,29 @@ except Exception:
 
 # Unified Attendance & Registration Endpoint
 API_URL = "http://127.0.0.1:8000/api/nfc/tap"
+HEARTBEAT_URL = API_URL.replace("/api/nfc/tap", "/api/nfc/heartbeat")
+
+def acr122u_reader_present():
+    hContext = wintypes.HANDLE()
+    ret = winscard.SCardEstablishContext(SCARD_SCOPE_USER, None, None, ctypes.byref(hContext))
+    if ret != 0:
+        return False
+
+    try:
+        reader_len = wintypes.DWORD(0)
+        ret = winscard.SCardListReadersA(hContext, None, None, ctypes.byref(reader_len))
+        if ret != 0 or reader_len.value <= 1:
+            return False
+
+        buf = (ctypes.c_char * reader_len.value)()
+        ret = winscard.SCardListReadersA(hContext, None, buf, ctypes.byref(reader_len))
+        if ret != 0:
+            return False
+
+        readers = bytes(buf).decode('latin1').split('\x00')
+        return any(reader.strip() for reader in readers)
+    finally:
+        winscard.SCardReleaseContext(hContext)
 
 def read_acr122u_uid():
     hContext = wintypes.HANDLE()
@@ -113,15 +136,37 @@ def send_to_laravel(uid):
     except Exception as e:
         return {"success": False, "message": str(e)}
 
+def send_heartbeat():
+    try:
+        reader_connected = "1" if acr122u_reader_present() else "0"
+        req = urllib.request.Request(
+            f"{HEARTBEAT_URL}?reader_connected={reader_connected}",
+            headers={
+                "User-Agent": "SIATRACK-Bridge",
+                "Accept": "application/json",
+            },
+        )
+        with urllib.request.urlopen(req, timeout=3):
+            return True
+    except Exception:
+        return False
+
 print("==================================================")
 print("       SIATRACK ACR122U Smart Bridge Online       ")
 print("==================================================")
 print("[READY] Place an NFC card on the ACR122U reader...\n")
 
 last_uid = None
+last_heartbeat = 0
+heartbeat_interval = 2
 
 while True:
     try:
+        now = time.time()
+        if now - last_heartbeat >= heartbeat_interval:
+            send_heartbeat()
+            last_heartbeat = now
+
         uid = read_acr122u_uid()
         if uid and uid != last_uid:
             last_uid = uid

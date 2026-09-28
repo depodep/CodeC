@@ -17,6 +17,12 @@ class ProfileController extends Controller
      */
     public function edit(Request $request): View
     {
+        if ((int) $request->user()->role_id === 3) {
+            return view('profile.student-edit', [
+                'user' => $request->user(),
+            ]);
+        }
+
         return view('profile.edit', [
             'user' => $request->user(),
         ]);
@@ -28,19 +34,39 @@ class ProfileController extends Controller
     public function update(Request $request): RedirectResponse
     {
         $user = $request->user();
+        $isStudent = (int) $user->role_id === 3;
+
+        if ($isStudent) {
+            $validated = $request->validate([
+                'username' => ['required', 'string', 'max:100', 'alpha_dash', Rule::unique(User::class)->ignore($user->id)],
+                'current_password' => ['nullable', 'required_with:password'],
+                'password' => ['nullable', 'min:8', 'confirmed'],
+            ]);
+
+            if ($request->filled('password')) {
+                if ($user->password !== $request->current_password) {
+                    return Redirect::back()->withErrors(['current_password' => 'The current password does not match our records.'])->withInput();
+                }
+                $user->password = $request->password;
+            }
+
+            $user->username = strtolower($validated['username']);
+            $user->save();
+
+            return Redirect::back()->with('success', 'Student account credentials updated successfully.');
+        }
 
         // 1. Validation rules para sa Profile Details
         $rules = [
             'first_name'       => ['required', 'string', 'max:100'],
             'last_name'        => ['required', 'string', 'max:100'],
             'phone_number'     => ['nullable', 'string', 'max:20'],
-            'email'            => [
-                'required', 
-                'string', 
-                'email', 
-                'max:255', 
-                Rule::unique(User::class)->ignore($user->id)
-            ],
+            'username'         => $isStudent
+                ? ['required', 'string', 'max:100', 'alpha_dash', Rule::unique(User::class)->ignore($user->id)]
+                : ['nullable', 'string', 'max:100', 'alpha_dash', Rule::unique(User::class)->ignore($user->id)],
+            'email'            => $isStudent
+                ? ['nullable', 'string', 'max:255']
+                : ['required', 'string', 'email', 'max:255', Rule::unique(User::class)->ignore($user->id)],
             'current_password' => ['nullable', 'required_with:password'],
             'password'         => ['nullable', 'min:8', 'confirmed'],
         ];
@@ -62,7 +88,8 @@ class ProfileController extends Controller
         // 3. I-assign ang updated fields (Natural Casing & Lowercase Email)
         $user->first_name   = $validated['first_name'];
         $user->last_name    = $validated['last_name'];
-        $user->email        = strtolower($validated['email']);
+        $user->username     = $isStudent ? strtolower($validated['username']) : ($validated['username'] ?? $user->username);
+        $user->email        = $isStudent ? null : strtolower($validated['email']);
         $user->phone_number = $validated['phone_number'] ?? null;
 
         // I-reset ang email verification kung nabago ang email

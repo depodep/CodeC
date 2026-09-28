@@ -30,7 +30,7 @@ class UsersExport implements FromCollection, WithHeadings, WithMapping, ShouldAu
         $users = match ($this->type) {
             'students' => User::with('nfcCard')->where('role_id', 3)->get(),
             'faculty' => User::with('nfcCard')->where('role_id', 2)->get(),
-            'directors' => User::with('nfcCard')->where('role_id', 4)->get(),
+            'management', 'directors' => User::with('nfcCard')->where('role_id', 4)->get(),
             'admin' => User::with('nfcCard')->where('role_id', 1)->get(),
             default => User::with('nfcCard')->where('role_id', '!=', 1)->get(),
         };

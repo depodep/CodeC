@@ -36,7 +36,7 @@ class AuthenticatedSessionController extends Controller
         if ($user->role_id == 1) {
             return redirect()->route('admin.dashboard');
         } elseif ($user->role_id == 2) {
-            return redirect()->route('teacher.schedules');
+            return redirect()->route('teacher.dashboard');
         } elseif ($user->role_id == 3) {
             return redirect()->route('student.dashboard');
         }
@@ -50,7 +50,7 @@ class AuthenticatedSessionController extends Controller
 
         // Safety fallback kapag walang valid role
         Auth::logout();
-        return redirect()->route('login')->withErrors(['email' => 'This account does not have a valid role assigned.']);
+        return redirect()->route('login')->withErrors(['username' => 'This account does not have a valid role assigned.']);
     }
 
     /**

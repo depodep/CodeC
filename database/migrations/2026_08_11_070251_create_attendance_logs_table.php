@@ -11,20 +11,21 @@ return new class extends Migration
         Schema::create('attendance_logs', function (Blueprint $table) {
             $table->id();
             $table->foreignId('user_id')->constrained('users')->onDelete('cascade');
+            $table->foreignId('academic_period_id')->nullable()->constrained('academic_periods')->nullOnDelete();
             $table->date('attendance_date');
             $table->time('time_in')->nullable();
             $table->time('time_out')->nullable();
             $table->enum('status', ['ON-TIME', 'LATE'])->default('ON-TIME');
             $table->string('sms_status', 50)->default('PENDING');
             
-            // Idinagdag natin ang mga ito para sa Academic Year History & Reset:
             $table->string('academic_year')->nullable();
             $table->string('semester')->nullable();
 
             $table->timestamps();
 
             $table->index(['user_id', 'attendance_date']);
-            $table->index(['academic_year', 'semester']); // Index para mabilis ang filtering
+            $table->index(['academic_year', 'semester']);
+            $table->index(['user_id', 'academic_period_id', 'attendance_date'], 'attendance_user_period_date_index');
         });
     }
 

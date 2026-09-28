@@ -49,6 +49,7 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             // Tinanggal na ang 'password' => 'hashed' para sa plain text storage
             'is_active'         => 'boolean',
+            'is_principal'      => 'boolean',
             'gender'            => 'integer',
             'grade_level'       => 'string',
             'strand'            => 'string',
@@ -76,6 +77,11 @@ class User extends Authenticatable
     public function attendanceLogs()
     {
         return $this->hasMany(AttendanceLog::class, 'user_id');
+    }
+
+    public function sections()
+    {
+        return $this->belongsToMany(AcademicSection::class, 'section_student', 'student_id', 'section_id');
     }
 
     public function classSchedules()
@@ -119,6 +125,7 @@ class User extends Authenticatable
      */
     public function getFullNameAttribute(): string
     {
-        return trim("{$this->first_name} {$this->last_name}");
+        $middle = !empty($this->middle_name) ? ' ' . strtoupper(substr($this->middle_name, 0, 1)) . '.' : '';
+        return trim("{$this->last_name}, {$this->first_name}{$middle}");
     }
 }

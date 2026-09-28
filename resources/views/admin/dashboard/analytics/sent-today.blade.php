@@ -1,35 +1,44 @@
 @extends('layouts.app')
 
-@section('title', 'SMS Sent Today - SIATRACK')
+@section('title', 'SMS Management - SIATRACK')
 
 @section('content')
-<div class="w-full min-h-screen flex flex-col bg-slate-50/70 p-6 lg:p-10 space-y-8">
+<div class="w-full min-h-screen flex flex-col bg-slate-50">
     
-    <!-- Top Header Bar -->
-    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-3xl border-2 border-slate-200 shadow-xs">
-        <div class="flex items-center gap-3.5">
-            <a href="{{ route('admin.dashboard') }}" class="w-10 h-10 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 flex items-center justify-center transition cursor-pointer shrink-0 shadow-2xs">
-                <i class="fa-solid fa-arrow-left"></i>
-            </a>
+    <!-- Shared SIA admin page header -->
+    <header class="bg-white border-b-2 border-slate-200 px-6 lg:px-10 py-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4 sticky top-0 z-20 shadow-xs">
+        <div class="flex items-center gap-4">
+            <div class="w-10 h-10 rounded-xl bg-[#590d0d] text-amber-300 flex items-center justify-center text-base shadow-xs shrink-0">
+                <i class="fa-solid fa-comment-sms"></i>
+            </div>
             <div>
-                <div class="flex items-center gap-2">
-                    <h1 class="text-xl lg:text-2xl font-black text-slate-900 tracking-tight">SMS Sent Today</h1>
-                    <span class="px-2.5 py-0.5 rounded-md text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300 uppercase">Parent Notification Gateway</span>
-                </div>
-                <p class="text-xs text-slate-500 font-bold mt-0.5">Monitor SMS notifications sent to parents of absent students.</p>
+                <h1 class="text-xl font-black text-slate-900 tracking-tight">SMS Management</h1>
+                <p class="text-xs text-slate-500 font-bold mt-0.5">Absent-student notifications and SMS gateway monitoring</p>
             </div>
         </div>
         <div class="flex flex-wrap items-center gap-3">
-            <button type="button" onclick="openEditTemplateModal()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black rounded-xl shadow-md transition cursor-pointer flex items-center gap-2">
-                <i class="fa-solid fa-pen-to-square text-xs"></i>
-                <span>Edit SMS Message</span>
-            </button>
+            <div x-data="{ open: false, testing: false, result: null }" class="relative flex items-center gap-2">
+                <button type="button" @click="testing = true; result = null; fetch('{{ route('admin.settings.sms.test') }}', { method: 'POST', headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json' } }).then(response => response.json()).then(data => result = data).catch(() => result = { success: false, message: 'Unable to reach SMS gateway.' }).finally(() => testing = false)" class="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-3 py-2 text-xs font-black text-white shadow-sm hover:bg-emerald-700">
+                    <i class="fa-solid fa-satellite-dish"></i><span x-text="testing ? 'Pinging...' : 'Ping SMS API'"></span>
+                </button>
+                <button type="button" @click="open = !open" class="h-9 w-9 rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50" aria-label="SMS actions">
+                    <i class="fa-solid fa-ellipsis-vertical"></i>
+                </button>
+                <div x-show="open" @click.outside="open = false" x-cloak class="absolute right-0 top-11 z-30 w-48 rounded-xl border border-slate-200 bg-white p-1.5 shadow-lg">
+                    <a href="{{ route('admin.settings') }}" class="block rounded-lg px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50"><i class="fa-solid fa-gear mr-2 text-slate-400"></i>Configure SMS API</a>
+                </div>
+                <div x-show="result" x-cloak class="absolute right-0 top-11 z-20 w-72 rounded-xl border bg-white px-3 py-2 text-[10px] font-bold shadow-lg" :class="result?.success ? 'border-emerald-200 text-emerald-700' : 'border-rose-200 text-rose-700'">
+                    <i class="fa-solid mr-1" :class="result?.success ? 'fa-circle-check' : 'fa-circle-exclamation'"></i>
+                    <span x-text="result ? result.message : ''"></span>
+                </div>
+            </div>
             <form method="GET" action="{{ route('admin.sms.sent-today') }}" class="flex items-center gap-2">
                 <input type="date" name="date" value="{{ $today }}" onchange="this.form.submit()" class="py-2 px-3 text-xs font-bold border-2 border-slate-200 rounded-xl bg-white focus:border-emerald-600 outline-none">
             </form>
         </div>
-    </div>
+    </header>
 
+    <div class="flex-1 p-6 lg:px-10 lg:py-8 space-y-6 max-w-[1600px] mx-auto w-full">
     <!-- Flash Notifications -->
     @if(session('success'))
         <div class="p-4 bg-emerald-50 border-2 border-emerald-300 text-emerald-900 text-xs font-bold rounded-2xl flex items-center justify-between shadow-xs w-full">
@@ -44,106 +53,50 @@
     @endif
 
     <!-- Current SMS Template Notice Box -->
-    <div class="bg-white p-6 rounded-3xl border-2 border-slate-200 shadow-xs space-y-3">
+    <div class="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-sm space-y-3">
         <div class="flex items-center justify-between">
             <span class="text-xs font-black text-slate-400 uppercase tracking-wider flex items-center gap-2">
                 <i class="fa-solid fa-quote-left text-emerald-600"></i>
-                <span>Current Absence Notification Template</span>
+                <span>SMS Absence Template</span>
             </span>
             <span class="text-[10px] font-black px-2.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">AUTOMATIC ABSENT TRIGGER ONLY</span>
         </div>
         <div class="p-4 rounded-2xl bg-slate-50 border border-slate-200 text-xs font-medium text-slate-700 leading-relaxed italic">
             "{{ $defaultTemplate }}"
         </div>
+        <div class="flex justify-end">
+            <button type="button" onclick="openEditTemplateModal()" class="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-3 py-2 text-[11px] font-black text-white hover:bg-slate-700">
+                <i class="fa-solid fa-pen-to-square"></i> Edit SMS Absence Template
+            </button>
+        </div>
     </div>
 
     <!-- Summary Statistics Grid -->
     <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 w-full">
-        <div class="bg-white p-5 rounded-3xl border-2 border-slate-200 shadow-xs flex flex-col justify-between">
+        <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
             <span class="text-[11px] font-black text-slate-400 uppercase tracking-wider">SMS Sent Today</span>
             <h3 class="text-2xl lg:text-3xl font-black text-emerald-600 tracking-tight mt-2">{{ number_format($totalSentToday) }}</h3>
         </div>
-        <div class="bg-white p-5 rounded-3xl border-2 border-slate-200 shadow-xs flex flex-col justify-between">
+        <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
             <span class="text-[11px] font-black text-slate-400 uppercase tracking-wider">Absent Students</span>
             <h3 class="text-2xl lg:text-3xl font-black text-rose-600 tracking-tight mt-2">{{ number_format($absentStudentsCount) }}</h3>
         </div>
-        <div class="bg-white p-5 rounded-3xl border-2 border-slate-200 shadow-xs flex flex-col justify-between">
+        <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
             <span class="text-[11px] font-black text-slate-400 uppercase tracking-wider">Successfully Sent</span>
             <h3 class="text-2xl lg:text-3xl font-black text-emerald-700 tracking-tight mt-2">{{ number_format($successSent) }}</h3>
         </div>
-        <div class="bg-white p-5 rounded-3xl border-2 border-slate-200 shadow-xs flex flex-col justify-between">
+        <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
             <span class="text-[11px] font-black text-slate-400 uppercase tracking-wider">Failed</span>
             <h3 class="text-2xl lg:text-3xl font-black text-rose-600 tracking-tight mt-2">{{ number_format($failedSent) }}</h3>
         </div>
-        <div class="bg-white p-5 rounded-3xl border-2 border-slate-200 shadow-xs flex flex-col justify-between">
+        <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
             <span class="text-[11px] font-black text-slate-400 uppercase tracking-wider">Pending</span>
             <h3 class="text-2xl lg:text-3xl font-black text-amber-600 tracking-tight mt-2">{{ number_format($pendingSent) }}</h3>
         </div>
     </div>
 
-    <!-- Filters Panel -->
-    <div class="bg-white p-6 lg:p-8 rounded-3xl border-2 border-slate-200 shadow-xs w-full">
-        <div class="mb-6 flex items-center justify-between">
-            <div>
-                <h3 class="text-sm font-black text-slate-800 uppercase tracking-wider">SMS Traffic Filtering & Search</h3>
-                <p class="text-xs text-slate-400 font-bold mt-0.5">Filter message logs and delivery statuses</p>
-            </div>
-            <div class="w-9 h-9 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 flex items-center justify-center text-xs shadow-2xs">
-                <i class="fa-solid fa-filter"></i>
-            </div>
-        </div>
-
-        <form method="GET" action="{{ route('admin.sms.sent-today') }}" class="space-y-4">
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <div>
-                    <label class="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1.5">School Year</label>
-                    <select name="school_year" class="w-full py-2.5 px-3 text-xs font-bold text-slate-800 border-2 border-slate-200 rounded-xl bg-white focus:border-emerald-600 outline-none cursor-pointer">
-                        @foreach($schoolYears as $sy)
-                            <option value="{{ $sy }}" {{ request('school_year', $activeSchoolYear) == $sy ? 'selected' : '' }}>S.Y. {{ $sy }}</option>
-                        @endforeach
-                    </select>
-                </div>
-
-                <div>
-                    <label class="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1.5">Section</label>
-                    <select name="section" class="w-full py-2.5 px-3 text-xs font-bold text-slate-800 border-2 border-slate-200 rounded-xl bg-white focus:border-emerald-600 outline-none cursor-pointer">
-                        <option value="">All Sections</option>
-                        @foreach($sections ?? [] as $sec)
-                            <option value="{{ $sec }}" {{ request('section') == $sec ? 'selected' : '' }}>Section {{ $sec }}</option>
-                        @endforeach
-                    </select>
-                </div>
-
-                <div>
-                    <label class="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1.5">SMS Status</label>
-                    <select name="status" class="w-full py-2.5 px-3 text-xs font-bold text-slate-800 border-2 border-slate-200 rounded-xl bg-white focus:border-emerald-600 outline-none cursor-pointer">
-                        <option value="">All Statuses</option>
-                        <option value="Sent" {{ request('status') == 'Sent' ? 'selected' : '' }}>Sent</option>
-                        <option value="Failed" {{ request('status') == 'Failed' ? 'selected' : '' }}>Failed</option>
-                        <option value="Pending" {{ request('status') == 'Pending' ? 'selected' : '' }}>Pending</option>
-                    </select>
-                </div>
-
-                <div>
-                    <label class="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1.5">Search Student</label>
-                    <input type="text" name="search" value="{{ request('search') }}" placeholder="Name or Student ID..." class="w-full py-2.5 px-3 text-xs font-bold text-slate-800 border-2 border-slate-200 rounded-xl bg-white focus:border-emerald-600 outline-none">
-                </div>
-            </div>
-
-            <div class="flex items-center justify-end gap-3 pt-3">
-                <a href="{{ route('admin.sms.sent-today') }}" class="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-extrabold rounded-xl transition text-center">
-                    Reset Filters
-                </a>
-                <button type="submit" class="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black rounded-xl shadow-md transition cursor-pointer flex items-center gap-2">
-                    <i class="fa-solid fa-magnifying-glass text-[11px]"></i>
-                    <span>Apply Filters</span>
-                </button>
-            </div>
-        </form>
-    </div>
-
     <!-- SMS Activity / Traffic Line Graph -->
-    <div class="bg-white p-6 lg:p-8 rounded-3xl border-2 border-slate-200 shadow-xs space-y-6 w-full">
+    <div class="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-sm space-y-5 w-full">
         <div class="flex items-center justify-between">
             <div>
                 <h3 class="text-sm font-black text-slate-800 uppercase tracking-wider">SMS Activity Today</h3>
@@ -160,7 +113,7 @@
 
     <!-- Failed SMS Notifications Section (Quick Action) -->
     @if(count($failedSmsList) > 0)
-    <div class="bg-rose-50 p-6 lg:p-8 rounded-3xl border-2 border-rose-200 shadow-xs space-y-6 w-full">
+    <div class="bg-rose-50 p-4 sm:p-5 rounded-2xl border border-rose-200 shadow-sm space-y-5 w-full">
         <div class="flex items-center justify-between pb-4 border-b border-rose-200">
             <div class="flex items-center gap-3">
                 <div class="w-10 h-10 rounded-xl bg-rose-600 text-white flex items-center justify-center text-sm">
@@ -211,7 +164,8 @@
     @endif
 
     <!-- Absent Students Notification Status Table -->
-    <div class="bg-white p-6 lg:p-8 rounded-3xl border-2 border-slate-200 shadow-xs space-y-6 w-full">
+    @if(false)
+    <div class="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-sm space-y-5 w-full">
         <div class="flex items-center justify-between pb-4 border-b border-slate-100">
             <div>
                 <h3 class="text-base font-black text-slate-900 tracking-tight">Absent Students Notification Status</h3>
@@ -222,7 +176,7 @@
             </span>
         </div>
 
-        <div class="overflow-x-auto rounded-2xl border-2 border-slate-200 shadow-2xs">
+        <div class="overflow-x-auto rounded-xl border border-slate-200 shadow-2xs">
             <table class="w-full text-left text-xs border-collapse">
                 <thead class="bg-slate-50/90 text-slate-700 uppercase font-black tracking-wider border-b-2 border-slate-200">
                     <tr>
@@ -246,9 +200,9 @@
                         <td class="py-4 px-5 text-center font-mono text-slate-600">{{ $abs->masked_phone }}</td>
                         <td class="py-4 px-5 text-center font-mono text-slate-700">{{ $abs->time_sent }}</td>
                         <td class="py-4 px-5 text-center">
-                            @if($abs->sms_status === 'Sent')
+                            @if(strtoupper($abs->sms_status) === 'SENT')
                                 <span class="px-3 py-1 rounded-full text-xs font-black bg-emerald-100 text-emerald-800 border border-emerald-300">Sent</span>
-                            @elseif($abs->sms_status === 'Failed')
+                            @elseif(strtoupper($abs->sms_status) === 'FAILED')
                                 <span class="px-3 py-1 rounded-full text-xs font-black bg-rose-100 text-rose-800 border border-rose-300">Failed</span>
                             @else
                                 <span class="px-3 py-1 rounded-full text-xs font-black bg-amber-100 text-amber-800 border border-amber-300">Pending</span>
@@ -280,9 +234,10 @@
             </table>
         </div>
     </div>
+    @endif
 
     <!-- Detailed SMS Log Table -->
-    <div class="bg-white p-6 lg:p-8 rounded-3xl border-2 border-slate-200 shadow-xs space-y-6 w-full">
+    <div class="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-sm space-y-5 w-full">
         <div class="flex items-center justify-between pb-4 border-b border-slate-100">
             <div>
                 <h3 class="text-base font-black text-slate-900 tracking-tight">Detailed SMS Logs</h3>
@@ -293,15 +248,50 @@
             </span>
         </div>
 
-        <div class="overflow-x-auto rounded-2xl border-2 border-slate-200 shadow-2xs">
+        <form method="GET" action="{{ route('admin.sms.sent-today') }}" class="rounded-xl bg-slate-50 border border-slate-200 p-4 space-y-4">
+            <div class="flex items-center gap-2 text-xs font-black uppercase tracking-wider text-slate-700">
+                <i class="fa-solid fa-filter text-emerald-600"></i>
+                <span>Filter SMS Logs</span>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                <select name="school_year" class="w-full py-2.5 px-3 text-xs font-bold text-slate-800 border border-slate-200 rounded-xl bg-white focus:border-emerald-600 outline-none cursor-pointer">
+                    @foreach($schoolYears as $sy)
+                        <option value="{{ $sy }}" {{ request('school_year', $activeSchoolYear) == $sy ? 'selected' : '' }}>S.Y. {{ $sy }}</option>
+                    @endforeach
+                </select>
+                <select name="section" class="w-full py-2.5 px-3 text-xs font-bold text-slate-800 border border-slate-200 rounded-xl bg-white focus:border-emerald-600 outline-none cursor-pointer">
+                    <option value="">All Sections</option>
+                    @foreach($sections ?? [] as $sec)
+                        <option value="{{ $sec }}" {{ request('section') == $sec ? 'selected' : '' }}>Section {{ $sec }}</option>
+                    @endforeach
+                </select>
+                <select name="status" class="w-full py-2.5 px-3 text-xs font-bold text-slate-800 border border-slate-200 rounded-xl bg-white focus:border-emerald-600 outline-none cursor-pointer">
+                    <option value="">All Statuses</option>
+                    <option value="Sent" {{ request('status') == 'Sent' ? 'selected' : '' }}>Sent</option>
+                    <option value="Failed" {{ request('status') == 'Failed' ? 'selected' : '' }}>Failed</option>
+                    <option value="Pending" {{ request('status') == 'Pending' ? 'selected' : '' }}>Pending</option>
+                </select>
+                <input type="text" name="search" value="{{ request('search') }}" placeholder="Name or Student ID..." class="w-full py-2.5 px-3 text-xs font-bold text-slate-800 border border-slate-200 rounded-xl bg-white focus:border-emerald-600 outline-none">
+            </div>
+            <div class="flex justify-end gap-2">
+                <a href="{{ route('admin.sms.sent-today') }}" class="px-4 py-2 bg-white hover:bg-slate-100 text-slate-600 text-xs font-extrabold rounded-xl border border-slate-200">Reset</a>
+                <button type="submit" class="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black rounded-xl shadow-sm">
+                    <i class="fa-solid fa-magnifying-glass mr-1"></i> Apply Filters
+                </button>
+            </div>
+        </form>
+
+        <div class="overflow-x-auto rounded-xl border border-slate-200 shadow-2xs">
             <table class="w-full text-left text-xs border-collapse">
                 <thead class="bg-slate-50/90 text-slate-700 uppercase font-black tracking-wider border-b-2 border-slate-200">
                     <tr>
+                        <th class="py-4 px-4 text-center">#</th>
+                        <th class="py-4 px-5">Student</th>
                         <th class="py-4 px-5">Student ID</th>
-                        <th class="py-4 px-5">Student Name</th>
+                        <th class="py-4 px-5">Section</th>
                         <th class="py-4 px-5">Parent / Guardian</th>
                         <th class="py-4 px-5 text-center">Phone Number</th>
-                        <th class="py-4 px-5 text-center">Date & Time</th>
+                        <th class="py-4 px-5 text-center">Time Sent</th>
                         <th class="py-4 px-5 text-center">Status</th>
                         <th class="py-4 px-5 text-center">Action</th>
                     </tr>
@@ -309,14 +299,18 @@
                 <tbody class="divide-y divide-slate-100 font-semibold text-slate-800">
                     @forelse($detailedLogs ?? [] as $log)
                     <tr class="hover:bg-slate-50/50 transition">
-                        <td class="py-4 px-5 font-mono font-bold text-slate-700">{{ $log->id_number ?? 'N/A' }}</td>
+                        <td class="py-4 px-4 text-center font-black text-slate-400">{{ method_exists($detailedLogs, 'firstItem') && $detailedLogs->firstItem() ? $detailedLogs->firstItem() + $loop->index : $loop->iteration }}</td>
                         <td class="py-4 px-5 font-extrabold text-slate-900">{{ $log->first_name }} {{ $log->last_name }}</td>
+                        <td class="py-4 px-5 font-mono font-bold text-slate-700">{{ $log->id_number ?? 'N/A' }}</td>
+                        <td class="py-4 px-5 font-bold text-slate-700">{{ $log->section ?? 'N/A' }}</td>
                         <td class="py-4 px-5 text-slate-700">{{ $log->parent_name }}</td>
                         <td class="py-4 px-5 text-center font-mono text-slate-600">{{ substr($log->phone_number, 0, 2) . '••••••' . substr($log->phone_number, -3) }}</td>
-                        <td class="py-4 px-5 text-center font-mono text-slate-600">{{ \Carbon\Carbon::parse($log->created_at)->format('M d, Y h:i A') }}</td>
+                        <td class="py-4 px-5 text-center font-mono text-slate-600">{{ \Carbon\Carbon::parse($log->created_at)->format('h:i A') }}</td>
                         <td class="py-4 px-5 text-center">
-                            @if($log->status === 'Sent')
+                            @if(strtoupper($log->status) === 'SENT')
                                 <span class="px-3 py-1 rounded-full text-xs font-black bg-emerald-100 text-emerald-800 border border-emerald-300">Sent</span>
+                            @elseif(strtoupper($log->status) === 'PENDING')
+                                <span class="px-3 py-1 rounded-full text-xs font-black bg-amber-100 text-amber-800 border border-amber-300">Pending</span>
                             @else
                                 <span class="px-3 py-1 rounded-full text-xs font-black bg-rose-100 text-rose-800 border border-rose-300">Failed</span>
                             @endif
@@ -329,7 +323,7 @@
                     </tr>
                     @empty
                     <tr>
-                        <td colspan="7" class="py-12 text-center text-slate-400 font-bold">
+                        <td colspan="9" class="py-12 text-center text-slate-400 font-bold">
                             <i class="fa-solid fa-folder-open text-3xl text-slate-300 mb-2"></i>
                             <p>No SMS logs found matching the selected parameters.</p>
                         </td>
@@ -347,7 +341,7 @@
     </div>
 
 </div>
-
+</div>
 <!-- Modal: Edit SMS Template -->
 <div id="editTemplateModal" class="fixed inset-0 z-50 bg-slate-950/60 hidden items-center justify-center p-4 backdrop-blur-xs">
     <div class="bg-white rounded-3xl border-2 border-slate-200 shadow-2xl max-w-xl w-full overflow-hidden flex flex-col">

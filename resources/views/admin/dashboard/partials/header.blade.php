@@ -1,8 +1,8 @@
 <!-- Top Header Bar -->
-<header class="bg-white border-b-2 border-slate-200 pl-8 lg:pl-12 pr-6 lg:pr-8 py-5 flex flex-col md:flex-row md:items-center justify-between gap-4 sticky top-0 z-20 shadow-xs w-full">
+<header class="bg-white border-b-2 border-slate-200 px-6 lg:px-10 py-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4 sticky top-0 z-20 shadow-xs w-full">
     <div>
-        <div class="flex items-center gap-3">
-            <div class="w-10 h-10 rounded-xl bg-[#590d0d] text-white flex items-center justify-center text-base shadow-xs shrink-0">
+        <div class="flex items-center gap-4">
+            <div class="w-10 h-10 rounded-xl bg-[#590d0d] text-amber-300 flex items-center justify-center text-base shadow-xs shrink-0">
                 <i class="fa-solid fa-table-cells-large text-amber-300"></i>
             </div>
             <div>

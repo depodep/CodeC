@@ -15,17 +15,31 @@
     </style>
 
     <!-- Modal Overlay with Blurred Background -->
-    <div class="fixed inset-0 z-50 overflow-y-auto bg-slate-950/60 backdrop-blur-md flex items-center justify-center p-4 sm:p-6"
+    <div class="fixed inset-0 z-50 overflow-y-auto bg-slate-950/60 backdrop-blur-md flex items-start justify-center p-4 sm:p-6"
         x-data="{ 
             roleId: '{{ old('role_id', '3') }}',
             password: '',
             passwordConfirmation: '',
             showPassword: false,
             teacherType: '{{ old('teacher_type', '') }}',
+            firstName: '{{ old('first_name', '') }}',
+            lrn: '{{ old('id_number', '') }}',
+            username: '{{ old('username', '') }}',
+            gradeLevel: '{{ old('grade_level', '') }}',
+            section: '{{ old('section', '') }}',
+            isSHSGrade() {
+                return ['Grade 11', 'Grade 12', '11', '12'].includes(this.gradeLevel);
+            },
+            usernameAuto: {{ old('username') ? 'false' : 'true' }},
+            sections: @js($sections ?? []),
+            getFilteredSections() {
+                const grade = parseInt(String(this.gradeLevel).replace(/\D/g, ''), 10);
+                return this.sections.filter(section => parseInt(String(section.grade_level).replace(/\D/g, ''), 10) === grade);
+            },
             defaultPasswords: {
                 '3': 'onesia@123',
                 '2': 'siafaculty@123',
-                '4': 'siadirector@123'
+                '4': 'siamanagement@123'
             },
             init() {
                 this.syncDefaultPassword();
@@ -34,11 +48,16 @@
                 const defaultPass = this.defaultPasswords[this.roleId] || 'onesia@123';
                 this.password = defaultPass;
                 this.passwordConfirmation = defaultPass;
+            },
+            syncStudentUsername() {
+                if (this.roleId === '3' && this.usernameAuto) {
+                    this.username = (this.lrn.replace(/\D/g, '') + this.firstName.toLowerCase().replace(/[^a-z0-9]/g, '')).slice(0, 100);
+                }
             }
          }">
 
         <div
-            class="bg-white rounded-3xl border-2 border-slate-200 max-w-3xl w-full p-8 sm:p-10 space-y-8 shadow-2xl my-8 transform transition-all max-h-[90vh] overflow-y-auto no-scrollbar">
+            class="bg-white rounded-3xl border-2 border-slate-200 max-w-3xl w-full p-8 sm:p-10 space-y-8 shadow-2xl mt-0 mb-8 transform transition-all max-h-[calc(100vh-2rem)] overflow-y-auto no-scrollbar">
 
             <!-- Header & Close Button -->
             <div class="flex items-center justify-between pb-6 border-b border-slate-100">
@@ -49,8 +68,7 @@
                     </div>
                     <div>
                         <h1 class="text-2xl font-black text-slate-900 tracking-tight">Add New User Account</h1>
-                        <p class="text-xs font-bold text-slate-500 mt-0.5">Enroll and register a new user into the
-                            directory.</p>
+                        <p class="text-xs font-bold text-slate-500 mt-0.5">Enroll and register a new user into the directory.</p>
                     </div>
                 </div>
 
@@ -86,227 +104,169 @@
                         class="w-full px-4 py-3.5 text-sm font-semibold text-slate-800 bg-white border border-slate-300 rounded-2xl focus:border-[#8b1818] outline-none">
                         <option value="3">Student</option>
                         <option value="2">Teacher</option>
-                        <option value="4">Director</option>
+                        <option value="4">Management</option>
                     </select>
+                </div>
+                <div x-show="roleId == '4'" x-cloak class="p-3.5 rounded-2xl bg-amber-50 border border-amber-200">
+                    <label class="flex items-center gap-2 text-xs font-black text-amber-900 cursor-pointer">
+                        <input type="checkbox" name="is_principal" value="1" class="w-4 h-4 accent-[#8b1818]">
+                        Designate as Principal Evaluator
+                    </label>
+                    <p class="text-[10px] text-amber-700 font-semibold mt-1 ml-6">Only this designated Management account may submit Principal evaluations.</p>
                 </div>
 
                 <!-- Personal Information -->
                 <div class="space-y-4">
                     <h3 class="text-sm font-black text-slate-900 uppercase tracking-wider">Personal Information</h3>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    
+                    <!-- ROW 1: Last Name | First Name | Middle Name -->
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
                         <div>
-                            <label class="block text-xs font-bold text-slate-700 mb-1.5">Last Name</label>
+                            <label class="block text-xs font-bold text-slate-700 mb-1.5">Last Name <span class="text-red-600">*</span></label>
                             <input type="text" name="last_name" value="{{ old('last_name') }}" required
                                 @input="$el.value = $el.value.toUpperCase()"
                                 class="w-full px-4 py-3 text-sm font-semibold uppercase border border-slate-300 rounded-xl focus:border-[#8b1818] outline-none">
                         </div>
+
+                        <div x-show="roleId == '3'" class="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
+                            <div>
+                                <label class="block text-xs font-bold text-slate-700 mb-1.5">Grade Level <span class="text-red-600">*</span></label>
+                                <select name="grade_level" x-model="gradeLevel" required class="w-full px-4 py-3 text-sm font-semibold border border-slate-300 rounded-xl bg-white text-slate-700 focus:border-[#8b1818] outline-none">
+                                    <option value="" disabled>Select Grade Level</option>
+                                    @foreach($gradeLevels ?? [] as $grade)
+                                        <option value="{{ $grade }}">{{ $grade }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-slate-700 mb-1.5">Strand / Track <span x-show="isSHSGrade()" class="text-red-600">*</span></label>
+                                <select name="strand" :disabled="!isSHSGrade()" :required="isSHSGrade()" class="w-full px-4 py-3 text-sm font-semibold border border-slate-300 rounded-xl bg-white text-slate-700 focus:border-[#8b1818] outline-none disabled:bg-slate-100">
+                                    <option value="">Select Strand</option>
+                                    @foreach($strands ?? [] as $strand)
+                                        <option value="{{ $strand }}">{{ $strand }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                        </div>
                         <div>
-                            <label class="block text-xs font-bold text-slate-700 mb-1.5">First Name</label>
+                            <label class="block text-xs font-bold text-slate-700 mb-1.5">First Name <span class="text-red-600">*</span></label>
                             <input type="text" 
                                    name="first_name" 
                                    value="{{ old('first_name') }}"
-                                   @input="$el.value = $el.value.toUpperCase()" 
+                                   x-model="firstName"
+                                   required
+                                   @input="$el.value = $el.value.toUpperCase(); firstName = $el.value; syncStudentUsername()" 
                                    class="w-full px-4 py-3 text-sm font-semibold uppercase border border-slate-300 rounded-xl focus:border-[#8b1818] outline-none">
                         </div>
                         <div>
-                            <label class="block text-xs font-bold text-slate-700 mb-1.5"
-                                x-text="roleId == '3' ? 'LRN / Student ID' : 'Employee ID'"></label>
-                            <input type="text" name="id_number" value="{{ old('id_number') }}"
-                                @input="if(roleId == '3') $el.value = $el.value.replace(/\D/g, '').slice(0, 12)"
-                                class="w-full px-4 py-3 text-sm font-semibold border border-slate-300 rounded-xl focus:border-[#8b1818] outline-none">
+                            <label class="block text-xs font-bold text-slate-700 mb-1.5">Middle Name <span class="text-slate-400 font-semibold">(optional)</span></label>
+                            <input type="text" 
+                                   name="middle_name" 
+                                   value="{{ old('middle_name') }}"
+                                   @input="$el.value = $el.value.toUpperCase()" 
+                                   class="w-full px-4 py-3 text-sm font-semibold uppercase border border-slate-300 rounded-xl focus:border-[#8b1818] outline-none">
+                        </div>
+                    </div>
+
+                    <!-- ROW 2: Student ID, LRN, Username, Gender -->
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1.5">
+                                <span x-text="roleId == '3' ? 'Student ID' : 'Employee ID'"></span><span class="text-red-600"> *</span>
+                            </label>
+                            <input type="text" name="student_id" value="{{ old('student_id') }}" required
+                                placeholder="e.g. STU-2026-001"
+                                class="w-full px-4 py-3 text-sm font-mono font-semibold border border-slate-300 rounded-xl focus:border-[#8b1818] outline-none">
                         </div>
                         <div>
-                            <label class="block text-xs font-bold text-slate-700 mb-1.5">Gender</label>
+                            <label class="block text-xs font-bold text-slate-700 mb-1.5"
+                                   >                                   <span x-text="roleId == '3' ? 'LRN (12-Digit Learner Ref No)' : 'Employee ID / Username'"></span><span class="text-red-600"> *</span></label>
+                            <input type="text" name="id_number" value="{{ old('id_number') }}" x-model="lrn" required
+                                @input="if(roleId == '3') { $el.value = $el.value.replace(/\D/g, '').slice(0, 12); lrn = $el.value; syncStudentUsername() }"
+                                placeholder="e.g. 103063080022"
+                                class="w-full px-4 py-3 text-sm font-mono font-semibold border border-slate-300 rounded-xl focus:border-[#8b1818] outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1.5">Gender <span class="text-red-600">*</span></label>
                             <select name="gender" required
                                 class="w-full px-4 py-3 text-sm font-semibold border border-slate-300 rounded-xl bg-white text-slate-700 focus:border-[#8b1818] outline-none">
-                                <option value="" disabled selected></option>
-                                <option value="1" {{ old('gender') == '1' ? 'selected' : '' }}>Male</option>
-                                <option value="2" {{ old('gender') == '2' ? 'selected' : '' }}>Female</option>
+                                <option value="" disabled selected>Select Gender</option>
+                                <option value="Male" {{ old('gender') == 'Male' || old('gender') == '1' ? 'selected' : '' }}>Male</option>
+                                <option value="Female" {{ old('gender') == 'Female' || old('gender') == '2' ? 'selected' : '' }}>Female</option>
                             </select>
                         </div>
-                        <div>
-                            <label class="block text-xs font-bold text-slate-700 mb-1.5">Email Address</label>
-                            <input type="email" name="email" value="{{ old('email') }}" required
-                                class="w-full px-4 py-3 text-sm font-semibold border border-slate-300 rounded-xl focus:border-[#8b1818] outline-none">
-                        </div>
-                        <div>
-                            <label class="block text-xs font-bold text-slate-700 mb-1.5">Contact Number</label>
-                            <input type="text" name="phone_number" value="{{ old('phone_number') }}" maxlength="11"
-                                pattern="09\d{9}" @input="$el.value = $el.value.replace(/\D/g, '').slice(0, 11)"
-                                class="w-full px-4 py-3 text-sm font-semibold border border-slate-300 rounded-xl focus:border-[#8b1818] outline-none">
-                        </div>
+                    </div>
+                    <div x-show="roleId == '3'">
+                        <label class="block text-xs font-bold text-slate-700 mb-1.5">Student Username <span class="text-red-600">*</span></label>
+                        <input type="text" name="username" x-model="username" :required="roleId == '3'" @input="usernameAuto = false"
+                            placeholder="Defaults to LRN + first name"
+                            class="w-full px-4 py-3 text-sm font-mono font-semibold border border-slate-300 rounded-xl focus:border-[#8b1818] outline-none">
+                        <p class="mt-1 text-[11px] font-semibold text-slate-500">Leave blank to generate a unique username from the LRN and first name.</p>
                     </div>
 
-                    <!-- Guardian Information (Students Only) -->
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2" x-show="roleId == '3'">
-                        <div>
-                            <label class="block text-xs font-bold text-slate-700 mb-1.5">Parent / Guardian Name</label>
-                            <input type="text" name="parent_name" value="{{ old('parent_name') }}"
-                                @input="$el.value = $el.value.toUpperCase()"
-                                class="w-full px-4 py-3 text-sm font-semibold uppercase border border-slate-300 rounded-xl focus:border-[#8b1818] outline-none">
-                        </div>
-                        <div>
-                            <label class="block text-xs font-bold text-slate-700 mb-1.5">Parent Contact Number</label>
-                            <input type="text" name="parent_phone_number" value="{{ old('parent_phone_number') }}"
-                                maxlength="11" pattern="09\d{9}"
-                                @input="$el.value = $el.value.replace(/\D/g, '').slice(0, 11)"
-                                class="w-full px-4 py-3 text-sm font-semibold border border-slate-300 rounded-xl focus:border-[#8b1818] outline-none">
-                        </div>
-                    </div>
-                </div>
-
-                <!-- ================= TEACHER ONLY FIELDS ================= -->
-                <div x-show="roleId == '2'" x-data="{
-                     teacherType: '{{ old('teacher_type', '') }}',
-                     advisoryGrade: '{{ old('grade_level', '') }}',
-                     sections: @js($sections),
-                     get advisorySections() {
-                         if (!this.advisoryGrade) return [];
-                         return this.sections.filter(s => s.grade_level && s.grade_level.trim().toLowerCase() === this.advisoryGrade.trim().toLowerCase());
-                     }
-                 }" class="space-y-6 pt-5 border-t border-slate-200">
-
-                    <div class="flex items-center gap-2.5">
-                        <span class="w-2.5 h-2.5 rounded-full bg-[#8b1818]"></span>
-                        <h3 class="text-xs font-black uppercase tracking-wider text-slate-500">Faculty Role Assignment</h3>
-                    </div>
-
-                    <!-- Main Teacher Designation Selector (Enlarged & Prominent) -->
-                    <div class="bg-slate-50/70 border border-slate-200 rounded-2xl p-5 space-y-2.5 shadow-xs">
-                        <label class="block text-xs font-bold uppercase tracking-wider text-slate-700">
-                            Teacher Designation <span class="text-red-600">*</span>
-                        </label>
-                        <div class="relative">
-                            <select name="teacher_type" x-model="teacherType" :disabled="roleId != '2'"
-                                :required="roleId == '2'"
-                                class="w-full px-4 py-3.5 text-sm font-bold text-slate-900 border-2 border-slate-300 rounded-xl bg-white focus:border-[#8b1818] focus:ring-4 focus:ring-[#8b1818]/10 outline-none transition appearance-none cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed">
-                                <option value="" disabled selected>Select Teacher Type</option>
-                                <option value="Subject Teacher">Subject Teacher</option>
-                                <option value="Adviser">Adviser</option>
-                            </select>
-                            <div class="absolute inset-y-0 right-0 flex items-center pr-4 pointer-events-none text-slate-500">
-                                <i class="fa-solid fa-chevron-down text-xs"></i>
-                            </div>
-                        </div>
-                        <p class="text-[11px] text-slate-500 font-medium">Choose whether this instructor handles an advisory class or operates strictly as a subject teacher.</p>
-                    </div>
-
-                    <!-- Advisory Class Assignment (Enlarged Container) -->
-                    <div x-show="teacherType === 'Adviser'" x-transition:enter="transition ease-out duration-200"
-                        x-transition:enter-start="opacity-0 -translate-y-1"
-                        x-transition:enter-end="opacity-100 translate-y-0"
-                        class="p-6 bg-red-50/50 border-2 border-red-200/80 rounded-2xl space-y-4 shadow-sm">
-
-                        <div class="flex items-center gap-2 pb-1 border-b border-red-200/60">
-                            <span class="w-2 h-2 rounded-full bg-[#8b1818]"></span>
-                            <h4 class="text-xs font-black uppercase tracking-wider text-[#8b1818]">Advisory Class Placement</h4>
-                        </div>
-
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
-                            <div>
-                                <label class="block text-xs font-bold text-slate-700 mb-2">
-                                    Advisory Grade Level <span class="text-red-600">*</span>
-                                </label>
-                                <select name="grade_level" x-model="advisoryGrade"
-                                    :disabled="roleId != '2' || teacherType !== 'Adviser'"
-                                    :required="roleId == '2' && teacherType === 'Adviser'"
-                                    class="w-full px-4 py-3.5 text-sm font-bold text-slate-900 border-2 border-slate-300 rounded-xl bg-white focus:border-[#8b1818] focus:ring-4 focus:ring-[#8b1818]/10 outline-none transition cursor-pointer">
-                                    <option value="" disabled selected>Select Grade Level</option>
-                                    @if(isset($gradeLevels) && count($gradeLevels) > 0)
-                                        @foreach($gradeLevels as $grade)
-                                            <option value="{{ $grade }}">{{ $grade }}</option>
-                                        @endforeach
-                                    @endif
-                                </select>
-                            </div>
-
-                            <div>
-                                <label class="block text-xs font-bold text-slate-700 mb-2">
-                                    Advisory Section <span class="text-red-600">*</span>
-                                </label>
-                                <select name="section" :disabled="roleId != '2' || teacherType !== 'Adviser'"
-                                    :required="roleId == '2' && teacherType === 'Adviser'"
-                                    class="w-full px-4 py-3.5 text-sm font-bold text-slate-900 border-2 border-slate-300 rounded-xl bg-white focus:border-[#8b1818] focus:ring-4 focus:ring-[#8b1818]/10 outline-none transition cursor-pointer">
-                                    <option value="" disabled selected>Select Section</option>
-                                    <template x-for="sec in advisorySections" :key="sec.id">
-                                        <option :value="sec.section_name ?? sec.name" x-text="sec.section_name ?? sec.name">
-                                        </option>
-                                    </template>
-                                </select>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- ================= STUDENT ONLY FIELDS ================= -->
-                <div x-show="roleId == '3'" x-data="{ 
-                         selectedGrade: '{{ old('grade_level', '') }}', 
-                         selectedStrand: '{{ old('strand', '') }}',
-                         sections: @js($sections),
-                         get filteredStrands() {
-                             if (!this.selectedGrade) return [];
-                             let list = this.sections
-                                 .filter(s => s.grade_level && s.grade_level.trim().toLowerCase() === this.selectedGrade.trim().toLowerCase() && s.strand)
-                                 .map(s => s.strand.trim().toUpperCase());
-                             return [...new Set(list)];
-                         },
-                         get filteredSections() {
-                             if (!this.selectedGrade) return [];
-                             return this.sections.filter(s => s.grade_level && s.grade_level.trim().toLowerCase() === this.selectedGrade.trim().toLowerCase());
-                         }
-                     }" class="space-y-4 pt-4 border-t border-slate-200">
-
-                    <h3 class="text-sm font-black text-[#8b1818] uppercase tracking-wider">Student Academic Placement</h3>
+                    <!-- ROW 3: Section | Phone | Email -->
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-
                         <div>
-                            <label class="block text-xs font-bold text-slate-700 mb-1.5">Grade Level</label>
-                            <select name="grade_level" x-model="selectedGrade" @change="selectedStrand = ''"
-                                :required="roleId == '3'"
+                            <label class="block text-xs font-bold text-slate-700 mb-1.5">Class Section <span x-show="roleId == '3'" class="text-red-600">*</span></label>
+                            <select name="section" x-model="section" :required="roleId == '3'"
                                 class="w-full px-4 py-3 text-sm font-semibold border border-slate-300 rounded-xl bg-white text-slate-700 focus:border-[#8b1818] outline-none">
-                                <option value="" disabled selected>Select Grade Level</option>
-                                @if(isset($gradeLevels) && count($gradeLevels) > 0)
-                                    @foreach($gradeLevels as $grade)
-                                        <option value="{{ $grade }}" {{ old('grade_level') == $grade ? 'selected' : '' }}>
-                                            {{ $grade }}
-                                        </option>
-                                    @endforeach
-                                @endif
-                            </select>
-                        </div>
-
-                        <div>
-                            <label class="block text-xs font-bold text-slate-700 mb-1.5">Strand / Track</label>
-                            <select name="strand" x-model="selectedStrand"
-                                class="w-full px-4 py-3 text-sm font-semibold border border-slate-300 rounded-xl bg-white text-slate-700 focus:border-[#8b1818] outline-none">
-                                <option value="" disabled selected>Select Strand</option>
-                                <template x-for="strand in filteredStrands" :key="strand">
-                                    <option :value="strand" x-text="strand" :selected="strand === '{{ old('strand') }}'">
-                                    </option>
+                                <option value="">-- Select Section --</option>
+                                <template x-for="sectionOption in getFilteredSections()" :key="sectionOption.id">
+                                    <option :value="sectionOption.section_name" x-text="'Section ' + sectionOption.section_name"></option>
                                 </template>
                             </select>
                         </div>
-
                         <div>
-                            <label class="block text-xs font-bold text-slate-700 mb-1.5">Section</label>
-                            <select name="section" :required="roleId == '3'"
-                                class="w-full px-4 py-3 text-sm font-semibold border border-slate-300 rounded-xl bg-white text-slate-700 focus:border-[#8b1818] outline-none">
-                                <option value="" disabled selected>Select Section</option>
-                                <template x-for="sec in filteredSections" :key="sec.id">
-                                    <option :value="sec.section_name ?? sec.name" x-text="sec.section_name ?? sec.name"
-                                        :selected="(sec.section_name ?? sec.name) === '{{ old('section') }}'"></option>
-                                </template>
-                            </select>
+                            <label class="block text-xs font-bold text-slate-700 mb-1.5">Contact Number <span x-show="roleId == '3'" class="text-red-600">*</span></label>
+                            <input type="text" name="phone_number" value="{{ old('phone_number') }}" :required="roleId == '3'" maxlength="11"
+                                pattern="09\d{9}" placeholder="09XXXXXXXXX" @input="$el.value = $el.value.replace(/\D/g, '').slice(0, 11)"
+                                class="w-full px-4 py-3 text-sm font-mono font-semibold border border-slate-300 rounded-xl focus:border-[#8b1818] outline-none">
                         </div>
+                        <div x-show="roleId != '3'">
+                            <label class="block text-xs font-bold text-slate-700 mb-1.5">Email Address <span class="text-red-600">*</span></label>
+                            <input type="email" name="email" value="{{ old('email') }}" :required="roleId != '3'"
+                                class="w-full px-4 py-3 text-sm font-semibold border border-slate-300 rounded-xl focus:border-[#8b1818] outline-none">
+                        </div>
+                    </div>
 
+                    <!-- Guardian / Emergency Contact Information (Students Only) -->
+                    <div class="space-y-4 pt-3 border-t border-slate-100" x-show="roleId == '3'">
+                        <h4 class="text-xs font-black uppercase tracking-wider text-[#8b1818]">Parent / Guardian / Emergency Contact</h4>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            <div>
+                                <label class="block text-xs font-bold text-slate-700 mb-1.5">Emergency Contact Full Name <span class="text-red-600">*</span></label>
+                                <input type="text" name="parent_name" value="{{ old('parent_name') }}" :required="roleId == '3'"
+                                    @input="$el.value = $el.value.toUpperCase()" placeholder="e.g. JUAN DELA CRUZ SR."
+                                    class="w-full px-4 py-3 text-sm font-semibold uppercase border border-slate-300 rounded-xl focus:border-[#8b1818] outline-none">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-slate-700 mb-1.5">Relationship to Student <span class="text-red-600">*</span></label>
+                                <select name="parent_relationship" :required="roleId == '3'"
+                                    class="w-full px-4 py-3 text-sm font-semibold border border-slate-300 rounded-xl bg-white text-slate-700 focus:border-[#8b1818] outline-none">
+                                    <option value="" selected>Select Relationship</option>
+                                    <option value="Father" {{ old('parent_relationship') == 'Father' ? 'selected' : '' }}>Father</option>
+                                    <option value="Mother" {{ old('parent_relationship') == 'Mother' ? 'selected' : '' }}>Mother</option>
+                                    <option value="Guardian" {{ old('parent_relationship') == 'Guardian' ? 'selected' : '' }}>Guardian</option>
+                                    <option value="Grandparent" {{ old('parent_relationship') == 'Grandparent' ? 'selected' : '' }}>Grandparent</option>
+                                    <option value="Relative" {{ old('parent_relationship') == 'Relative' ? 'selected' : '' }}>Relative</option>
+                                    <option value="Other" {{ old('parent_relationship') == 'Other' ? 'selected' : '' }}>Other</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-slate-700 mb-1.5">Emergency Contact Phone Number <span class="text-red-600">*</span></label>
+                                <input type="text" name="parent_phone_number" value="{{ old('parent_phone_number') }}" :required="roleId == '3'"
+                                    maxlength="11" pattern="09\d{9}" placeholder="09XXXXXXXXX"
+                                    @input="$el.value = $el.value.replace(/\D/g, '').slice(0, 11)"
+                                    class="w-full px-4 py-3 text-sm font-mono font-semibold border border-slate-300 rounded-xl focus:border-[#8b1818] outline-none">
+                            </div>
+                        </div>
                     </div>
                 </div>
 
                 <!-- PASSWORD SECTION -->
                 <div class="space-y-4 pt-4 border-t border-slate-200">
                     <div class="flex items-center justify-between">
-                        <h3 class="text-sm font-black text-slate-900 uppercase tracking-wider">Account Security Credentials
-                        </h3>
+                        <h3 class="text-sm font-black text-slate-900 uppercase tracking-wider">Account Security Credentials</h3>
                         <button type="button" @click="showPassword = !showPassword"
                             class="inline-flex items-center gap-1.5 text-xs font-bold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-lg transition cursor-pointer">
                             <i class="fa-solid text-xs" :class="showPassword ? 'fa-eye-slash' : 'fa-eye'"></i>

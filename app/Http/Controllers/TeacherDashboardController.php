@@ -15,49 +15,143 @@ use Illuminate\Support\Facades\DB;
 
 class TeacherDashboardController extends Controller
 {
-    public function schedule(Request $request)
+    public function classes(Request $request)
     {
         $teacher = Auth::user();
         $search = trim((string) $request->query('search'));
+        $selectedSection = trim((string) $request->query('section'));
+        $viewMode = $request->query('view', 'timetable');
 
+        // 1. Get Active School Year / Period
+        $activeSchoolYear = '2025-2026';
+        $schoolYears = collect([]);
+        if (Schema::hasTable('academic_periods')) {
+            $schoolYears = DB::table('academic_periods')->orderBy('updated_at', 'desc')->get();
+            $activePeriod = $schoolYears->firstWhere('is_active', 1);
+            if ($activePeriod) {
+                $activeSchoolYear = $activePeriod->name ?? $activePeriod->academic_year ?? $activePeriod->school_year ?? '2025-2026';
+            }
+        } elseif (Schema::hasTable('school_years')) {
+            $schoolYears = DB::table('school_years')->orderBy('start_date', 'desc')->get();
+            $activeYear = $schoolYears->firstWhere('status', 'Active') ?? $schoolYears->first();
+            if ($activeYear) {
+                $activeSchoolYear = $activeYear->name ?? $activeYear->school_year ?? $activeYear->academic_year ?? '2025-2026';
+            }
+        }
+
+        // 2. Get Sections (Directory)
+        $sections = collect([]);
+        if (Schema::hasTable('academic_sections')) {
+            $sortCol = Schema::hasColumn('academic_sections', 'section_name') ? 'section_name' : (Schema::hasColumn('academic_sections', 'name') ? 'name' : 'id');
+            $sections = DB::table('academic_sections')->orderBy($sortCol, 'asc')->get();
+        } elseif (Schema::hasTable('sections')) {
+            $sortCol = Schema::hasColumn('sections', 'section_name') ? 'section_name' : (Schema::hasColumn('sections', 'name') ? 'name' : 'id');
+            $sections = DB::table('sections')->orderBy($sortCol, 'asc')->get();
+        }
+
+        // 3. Get Class Schedules for the Authenticated Teacher
         $schedCols = Schema::hasTable('class_schedules') ? Schema::getColumnListing('class_schedules') : [];
         $teacherCol = in_array('teacher_id', $schedCols) ? 'teacher_id' : (in_array('user_id', $schedCols) ? 'user_id' : null);
 
-        if (!Schema::hasTable('class_schedules') || !$teacherCol) {
-            $emptyCollection = collect();
-            return view('teacher.schedules', [
-                'teacher' => $teacher,
-                'mySchedules' => $emptyCollection,
-                'schedules' => $emptyCollection,
-                'search' => $search
-            ]);
+        $mySchedules = collect([]);
+        if (Schema::hasTable('class_schedules') && $teacherCol) {
+            $mySchedules = ClassSchedule::with(['subjectRecord', 'academicSection'])
+                ->where($teacherCol, $teacher->id)
+                ->orderBy('start_time', 'asc')
+                ->get();
         }
 
-        $query = ClassSchedule::with(['subjectRecord', 'academicSection'])
-            ->where($teacherCol, $teacher->id);
-
-        if ($search) {
-            $query->where(function($q) use ($search, $schedCols) {
-                if (in_array('subject_name', $schedCols)) {
-                    $q->where('subject_name', 'like', "%{$search}%");
-                } elseif (in_array('subject', $schedCols)) {
-                    $q->orWhere('subject', 'like', "%{$search}%");
-                }
-                
-                if (in_array('section', $schedCols)) {
-                    $q->orWhere('section', 'like', "%{$search}%");
-                }
-
-                $q->orWhereHas('subjectRecord', function($subQ) use ($search) {
-                    $subQ->where('name', 'like', "%{$search}%")
-                         ->orWhere('code', 'like', "%{$search}%");
+        $allSectionSchedules = collect();
+        if (Schema::hasTable('class_schedules')) {
+            $allSectionSchedules = ClassSchedule::with(['subjectRecord', 'teacher'])
+                ->orderBy('day')
+                ->orderBy('start_time')
+                ->get()
+                ->map(function ($schedule) use ($teacher) {
+                    $sectionName = optional($schedule->academicSection)->section_name ?: $schedule->section;
+                    return [
+                        'section_id' => $schedule->section_id,
+                        'section_name' => $sectionName,
+                        'day' => trim($schedule->day ?? $schedule->day_of_week ?? 'Schedule'),
+                        'start_time' => $schedule->start_time ? Carbon::parse($schedule->start_time)->format('g:i A') : 'TBA',
+                        'end_time' => $schedule->end_time ? Carbon::parse($schedule->end_time)->format('g:i A') : 'TBA',
+                        'subject' => $schedule->subject_name ?: optional($schedule->subjectRecord)->name ?: $schedule->subject ?: 'Class Schedule',
+                        'teacher' => optional($schedule->teacher)->first_name
+                            ? trim(optional($schedule->teacher)->first_name . ' ' . optional($schedule->teacher)->last_name)
+                            : 'Assigned Faculty',
+                        'is_mine' => (int) $schedule->teacher_id === (int) $teacher->id,
+                    ];
                 });
-            });
         }
 
-        $mySchedules = $query->get();
-        $schedules = $mySchedules; 
-        return view('teacher.schedules', compact('teacher', 'mySchedules', 'schedules', 'search'));
+        $sections->each(function ($section) use ($allSectionSchedules) {
+            $sectionName = trim((string) ($section->section_name ?? $section->name ?? ''));
+            $section->schedule_list = $allSectionSchedules->filter(function ($schedule) use ($section, $sectionName) {
+                return ($schedule['section_id'] && (int) $schedule['section_id'] === (int) $section->id)
+                    || (!$schedule['section_id'] && $schedule['section_name'] === $sectionName);
+            })->values();
+            $section->has_my_schedule = $section->schedule_list->contains('is_mine', true);
+        });
+
+        // 4. Extract Teacher's unique assigned sections (for section filter)
+        $teacherSectionNames = $mySchedules->map(function($sched) {
+            return optional($sched->academicSection)->section_name ?: $sched->section;
+        })->filter()->unique()->values();
+
+        if (Schema::hasTable('academic_sections')) {
+            $advisoryNames = DB::table('academic_sections')
+                ->where('advisor_id', $teacher->id)
+                ->pluck('section_name')
+                ->all();
+            $teacherSectionNames = $teacherSectionNames->merge($advisoryNames)->unique()->values();
+        }
+
+        // Calculate student counts per section
+        $sectionStudentCounts = [];
+        if (Schema::hasTable('users')) {
+            $sectionStudentCounts = DB::table('users')
+                ->where('role_id', 3)
+                ->whereNotNull('section')
+                ->groupBy('section')
+                ->select('section', DB::raw('count(*) as count'))
+                ->pluck('count', 'section')
+                ->all();
+        }
+
+        // Attach student counts and normalized section name to schedules
+        $mySchedules->each(function($sched) use ($sectionStudentCounts) {
+            $sec = optional($sched->academicSection)->section_name ?: $sched->section;
+            $sched->normalized_section = $sec;
+            $sched->student_count = $sec && isset($sectionStudentCounts[$sec]) ? $sectionStudentCounts[$sec] : 0;
+        });
+
+        // Metrics for count cards
+        $totalLoads = $mySchedules->count();
+        $sectionsCount = $teacherSectionNames->count();
+        $subjectsCount = $mySchedules->pluck('subject_name')->filter()->unique()->count();
+        if ($subjectsCount === 0 && $mySchedules->count() > 0) {
+            $subjectsCount = $mySchedules->pluck('subject')->filter()->unique()->count() ?: $totalLoads;
+        }
+
+        return view('teacher.classes', compact(
+            'teacher',
+            'mySchedules',
+            'activeSchoolYear',
+            'schoolYears',
+            'sections',
+            'teacherSectionNames',
+            'totalLoads',
+            'sectionsCount',
+            'subjectsCount',
+            'search',
+            'selectedSection',
+            'viewMode'
+        ));
+    }
+
+    public function schedule(Request $request)
+    {
+        return $this->classes($request);
     }
 
     public function index()
@@ -67,6 +161,14 @@ class TeacherDashboardController extends Controller
 
         $activePeriod = Schema::hasTable('academic_periods') 
             ? DB::table('academic_periods')->where('is_active', 1)->first() 
+            : null;
+
+        $activeEvaluationCycle = Schema::hasTable('evaluation_cycles')
+            ? DB::table('evaluation_cycles')
+                ->where('status', 'active')
+                ->where('is_active', 1)
+                ->orderByDesc('id')
+                ->first()
             : null;
 
         $totalStudents = Schema::hasTable('users') 
@@ -123,7 +225,7 @@ class TeacherDashboardController extends Controller
         return view('teacher.dashboard', compact(
             'teacher', 'activePeriod', 'totalStudents', 'mySectionsCount', 
             'presentToday', 'attendanceRate', 'totalRecords', 
-            'presentRecords', 'avgAttendanceRate', 'chartDates', 'chartPresents'
+            'presentRecords', 'avgAttendanceRate', 'chartDates', 'chartPresents', 'activeEvaluationCycle'
         ));
     }
 
@@ -166,91 +268,272 @@ class TeacherDashboardController extends Controller
         return redirect()->back()->with('success', 'Faculty profile updated successfully!');
     }
 
-    public function schoolYears()
+    public function schoolYears(Request $request)
     {
-        $teacher = Auth::user();
-        $schoolYears = collect([]);
-        if (Schema::hasTable('academic_periods')) {
-            $schoolYears = DB::table('academic_periods')->orderBy('updated_at', 'desc')->get();
-        } elseif (Schema::hasTable('school_years')) {
-            $schoolYears = DB::table('school_years')->orderBy('start_date', 'desc')->get();
-        }
-
-        $sections = collect([]);
-        if (Schema::hasTable('academic_sections')) {
-             $sortCol = Schema::hasColumn('academic_sections', 'section_name') ? 'section_name' : (Schema::hasColumn('academic_sections', 'name') ? 'name' : 'id');
-             $sections = DB::table('academic_sections')->orderBy($sortCol, 'asc')->get();
-        } elseif (Schema::hasTable('sections')) {
-             $sortCol = Schema::hasColumn('sections', 'section_name') ? 'section_name' : (Schema::hasColumn('sections', 'name') ? 'name' : 'id');
-             $sections = DB::table('sections')->orderBy($sortCol, 'asc')->get();
-        }
-
-        return view('teacher.school-years', compact('teacher', 'schoolYears', 'sections'));
+        return $this->classes($request);
     }
 
     public function students(Request $request)
     {
         $teacher = Auth::user();
-        $search = $request->query('search');
-        $sectionFilter = $request->query('section');
-        $sortOrder = $request->query('sort', 'asc'); 
+        $search = trim((string) $request->query('search'));
+        $sortOrder = $request->query('sort', 'asc');
+        $tabs = collect();
 
-        $sectionsList = collect([]);
+        $advisorySectionIds = [];
+        $advisorySectionNames = [];
+        $advisorySections = collect();
         if (Schema::hasTable('academic_sections')) {
-            $sectionsList = DB::table('academic_sections')->pluck(Schema::hasColumn('academic_sections', 'section_name') ? 'section_name' : 'name');
-        } elseif (Schema::hasTable('sections')) {
-            $sectionsList = DB::table('sections')->pluck(Schema::hasColumn('sections', 'section_name') ? 'section_name' : 'name');
-        }
-
-        $query = User::where('role_id', 3);
-
-        if ($search) {
-            $query->where(function ($q) use ($search) {
-                $q->where('first_name', 'like', "%{$search}%")
-                  ->orWhere('last_name', 'like', "%{$search}%")
-                  ->orWhere('id_number', 'like', "%{$search}%");
-            });
-        }
-
-        if ($sectionFilter) {
-            if (Schema::hasColumn('users', 'section')) {
-                $query->where('section', $sectionFilter);
+            $sections = DB::table('academic_sections')->where('advisor_id', $teacher->id)->get();
+            $advisorySections = $sections;
+            $advisorySectionIds = $sections->pluck('id')->all();
+            $advisorySectionNames = $sections->pluck('section_name')->all();
+            foreach ($sections as $section) {
+                $tabs->prepend([
+                    'id' => 'advisory-' . $section->id,
+                    'type' => 'advisory',
+                    'label' => 'Advisory - ' . ($section->grade_level ? 'Grade ' . $section->grade_level . ' ' : '') . $section->section_name,
+                    'subject' => 'Advisory',
+                    'grade' => $section->grade_level,
+                    'section' => $section->section_name,
+                    'section_id' => $section->id,
+                    'students' => collect(),
+                ]);
             }
         }
 
-        $students = $query->orderBy('last_name', $sortOrder)->get();
+        if (Schema::hasTable('class_schedules')) {
+            $teacherColumn = Schema::hasColumn('class_schedules', 'teacher_id') ? 'teacher_id' : (Schema::hasColumn('class_schedules', 'user_id') ? 'user_id' : null);
+            if ($teacherColumn) {
+                foreach (ClassSchedule::with(['subjectRecord', 'academicSection'])->where($teacherColumn, $teacher->id)->get() as $schedule) {
+                    $section = optional($schedule->academicSection)->section_name ?: $schedule->section;
+                    if (!$section) continue;
+                    $grade = optional($schedule->academicSection)->grade_level ?: $schedule->grade_level;
+                    $subject = $schedule->subject_name ?: optional($schedule->subjectRecord)->name ?: $schedule->subject ?: 'Subject';
+                    $tabs->push([
+                        'id' => 'subject-' . $schedule->id,
+                        'type' => 'subject',
+                        'label' => trim($subject . ' - ' . ($grade ? 'Grade ' . $grade . ' ' : '') . $section),
+                        'subject' => $subject,
+                        'grade' => $grade,
+                        'section' => $section,
+                        'section_id' => $schedule->section_id,
+                        'schedule_id' => $schedule->id,
+                        'students' => collect(),
+                    ]);
+                }
+            }
+        }
+
+        $tabs = $tabs->unique(fn ($tab) => $tab['type'] . '|' . $tab['subject'] . '|' . $tab['grade'] . '|' . $tab['section'])->values();
+
+        $activeEvaluationCycle = Schema::hasTable('evaluation_cycles')
+            ? DB::table('evaluation_cycles')->where('status', 'active')->where('is_active', 1)->first()
+            : null;
+        $evaluatedStudentIds = ($activeEvaluationCycle && Schema::hasTable('peer_evaluations'))
+            ? DB::table('peer_evaluations')
+                ->where('evaluatee_id', $teacher->id)
+                ->where('evaluation_cycle_id', $activeEvaluationCycle->id)
+                ->pluck('evaluator_id')
+                ->map(fn ($id) => (int) $id)
+                ->all()
+            : [];
+
+        $advisoryStudentIds = collect();
+        if (Schema::hasTable('section_student') && !empty($advisorySectionIds)) {
+            $advisoryStudentIds = DB::table('section_student')
+                ->whereIn('section_id', $advisorySectionIds)
+                ->pluck('student_id');
+        }
+
+        $baseQuery = User::with('nfcCard')->where('role_id', 3);
+        if ($search) {
+            $baseQuery->where(function ($q) use ($search) {
+                $q->where('first_name', 'like', "%{$search}%")
+                  ->orWhere('last_name', 'like', "%{$search}%")
+                  ->orWhere('id_number', 'like', "%{$search}%")
+                  ->orWhere('email', 'like', "%{$search}%");
+            });
+        }
+
+        $tabs = $tabs->map(function ($tab) use ($baseQuery, $sortOrder, $advisorySectionNames, $advisoryStudentIds, $teacher, $evaluatedStudentIds, $activeEvaluationCycle) {
+            $query = clone $baseQuery;
+            $students = $query->where('section', $tab['section'])->orderBy('last_name', $sortOrder === 'desc' ? 'desc' : 'asc')->get();
+
+            $attendanceQuery = collect();
+            if (Schema::hasTable('attendance_logs') && $students->isNotEmpty()) {
+                $attendanceStudentColumn = Schema::hasColumn('attendance_logs', 'student_id') ? 'student_id' : 'user_id';
+                $attendanceDateColumn = Schema::hasColumn('attendance_logs', 'attendance_date')
+                    ? 'attendance_date'
+                    : (Schema::hasColumn('attendance_logs', 'scanned_at') ? 'scanned_at' : 'created_at');
+                $attendanceBuilder = DB::table('attendance_logs');
+
+                if (Schema::hasColumn('attendance_logs', 'class_schedule_id')) {
+                    $attendanceBuilder
+                        ->join('class_schedules', 'attendance_logs.class_schedule_id', '=', 'class_schedules.id')
+                        ->where('class_schedules.teacher_id', $teacher->id)
+                        ->where(function ($query) use ($tab) {
+                            if (!empty($tab['schedule_id'])) {
+                                $query->where('class_schedules.id', $tab['schedule_id']);
+                                return;
+                            }
+
+                            $query->where('class_schedules.section', $tab['section']);
+                            if (!empty($tab['section_id'])) {
+                                $query->orWhere('class_schedules.section_id', $tab['section_id']);
+                            }
+                        });
+                } else {
+                    $attendanceBuilder->whereIn('attendance_logs.' . $attendanceStudentColumn, $students->pluck('id'));
+                }
+
+                $attendanceQuery = $attendanceBuilder
+                    ->whereDate('attendance_logs.' . $attendanceDateColumn, today())
+                    ->select('attendance_logs.' . $attendanceStudentColumn . ' as student_id', 'attendance_logs.status')
+                    ->latest('attendance_logs.id')
+                    ->get()
+                    ->groupBy('student_id');
+            }
+
+            $students->each(function ($student) use ($advisorySectionNames, $advisoryStudentIds) {
+                $isAdvisory = in_array($student->section, $advisorySectionNames)
+                    || $advisoryStudentIds->contains($student->id);
+                $student->can_edit = (bool) $isAdvisory;
+            });
+
+            $students->each(function ($student) use ($attendanceQuery, $evaluatedStudentIds, $activeEvaluationCycle) {
+                $attendance = $attendanceQuery->get($student->id, collect())->first();
+                $student->attendance_status = $attendance
+                    ? (in_array(strtolower((string) $attendance->status), ['present', 'late', 'on-time', 'on time']) ? 'Present' : 'Absent')
+                    : 'Absent';
+                $student->evaluation_status = $activeEvaluationCycle
+                    ? (in_array((int) $student->id, $evaluatedStudentIds, true) ? 'Done' : 'Not Evaluated')
+                    : 'Not Active';
+            });
+
+            $tab['students'] = $students;
+            return $tab;
+        });
+
+        $students = $tabs->flatMap(fn ($tab) => $tab['students'])->unique('id')->values();
         $totalStudents = $students->count();
 
-        return view('teacher.students', compact('teacher', 'students', 'sectionsList', 'totalStudents', 'search', 'sectionFilter', 'sortOrder'));
+        $advisoryTabs = $tabs->where('type', 'advisory');
+        $subjectTabs = $tabs->where('type', 'subject');
+        $advisoryCount = $advisoryTabs->flatMap(fn ($tab) => $tab['students'])->unique('id')->count();
+        $subjectCount = $subjectTabs->flatMap(fn ($tab) => $tab['students'])->unique('id')->count();
+        $boundCount = $students->filter(fn ($student) => !empty(optional($student->nfcCard)->tag_id))->count();
+        $unboundCount = max(0, $totalStudents - $boundCount);
+
+        return view('teacher.students', compact(
+            'teacher',
+            'students',
+            'tabs',
+            'totalStudents',
+            'advisoryCount',
+            'subjectCount',
+            'boundCount',
+            'unboundCount',
+            'search',
+            'sortOrder'
+            , 'advisorySections'
+        ));
+    }
+
+    public function updateStudent(Request $request, $id)
+    {
+        $student = User::where('role_id', 3)->findOrFail($id);
+        $teacher = Auth::user();
+
+        $canUpdate = false;
+        if (Schema::hasTable('academic_sections')) {
+            $advisorSections = DB::table('academic_sections')
+                ->where('advisor_id', $teacher->id)
+                ->get();
+            $sectionNames = $advisorSections->pluck('section_name')->all();
+            $sectionIds = $advisorSections->pluck('id')->all();
+
+            $isEnrolledInAdvisorySection = false;
+            if (Schema::hasTable('section_student') && !empty($sectionIds)) {
+                $isEnrolledInAdvisorySection = DB::table('section_student')
+                    ->where('student_id', $student->id)
+                    ->whereIn('section_id', $sectionIds)
+                    ->exists();
+            }
+
+            if (in_array($student->section, $sectionNames) || $isEnrolledInAdvisorySection) {
+                $canUpdate = true;
+            }
+        }
+
+        abort_unless($canUpdate, 403, 'Only the student’s advisory teacher can update this record.');
+        $request->validate([
+            'first_name' => ['required', 'string', 'max:255'], 'middle_name' => ['nullable', 'string', 'max:100'], 'last_name' => ['required', 'string', 'max:255'],
+            'id_number' => ['required', 'string', 'max:50', \Illuminate\Validation\Rule::unique('users', 'id_number')->ignore($student->id)],
+            'phone_number' => ['required', 'string', 'max:20'], 'gender' => ['required', 'string', 'max:20'], 'grade_level' => ['required', 'string', 'max:20'],
+            'strand' => ['required', 'string', 'max:100'], 'section' => ['required', 'string', 'max:255'], 'parent_name' => ['required', 'string', 'max:255'],
+            'parent_relationship' => ['required', 'string', 'max:50'], 'parent_phone_number' => ['required', 'string', 'max:20'],
+        ]);
+        foreach (['first_name', 'middle_name', 'last_name', 'id_number', 'phone_number', 'gender', 'grade_level', 'strand', 'section', 'parent_name', 'parent_relationship', 'parent_phone_number'] as $field) {
+            if (Schema::hasColumn('users', $field)) $student->{$field} = $request->input($field);
+        }
+        $student->save();
+        return back()->with('success', 'Student information updated successfully.');
     }
 
     public function storeStudent(Request $request)
     {
+        $teacher = Auth::user();
+        abort_unless(Schema::hasTable('academic_sections'), 403, 'Academic sections are not configured.');
+
         $request->validate([
             'first_name' => ['required', 'string', 'max:255'],
+            'middle_name' => ['nullable', 'string', 'max:100'],
             'last_name'  => ['required', 'string', 'max:255'],
             'id_number'  => ['required', 'string', 'max:255', 'unique:users,id_number'],
-            'email'      => ['required', 'string', 'email', 'max:255', 'unique:users,email'],
             'gender'     => ['required'],
-            'strand'     => ['nullable', 'string', 'max:100'],
-            'section'    => ['nullable', 'string', 'max:100'],
+            'grade_level' => ['required', 'string', 'max:20'],
+            'strand'     => ['required', 'string', 'max:100'],
+            'section'    => ['required', 'string', 'max:100'],
+            'phone_number' => ['required', 'string', 'max:20'],
+            'parent_name' => ['required', 'string', 'max:255'],
+            'parent_relationship' => ['required', 'string', 'max:50'],
+            'parent_phone_number' => ['required', 'string', 'max:20'],
             'password'   => ['nullable', 'string', 'min:6'],
         ]);
 
-        User::create([
+        $section = DB::table('academic_sections')
+            ->where('advisor_id', $teacher->id)
+            ->where('section_name', $request->section)
+            ->first();
+        abort_unless($section, 403, 'You can only add students to your assigned advisory section.');
+
+        $student = User::create([
             'first_name' => $request->first_name,
+            'middle_name' => $request->middle_name,
             'last_name'  => $request->last_name,
             'id_number'  => $request->id_number,
-            'email'      => $request->email,
             'gender'     => $request->gender,
+            'grade_level' => $request->grade_level,
             'strand'     => $request->strand ?? 'STEM',
             'section'    => $request->section ?? 'Amber',
+            'phone_number' => $request->phone_number,
+            'parent_name' => $request->parent_name,
+            'parent_relationship' => $request->parent_relationship,
+            'parent_phone_number' => $request->parent_phone_number,
             'role_id'    => 3, 
             'academic_period_id' => Schema::hasTable('academic_periods')
                 ? DB::table('academic_periods')->where('is_active', 1)->value('id')
                 : null,
             'password'   => Hash::make($request->password ?: 'password123'), 
         ]);
+
+        if (Schema::hasTable('section_student')) {
+            DB::table('section_student')->insertOrIgnore([
+                'section_id' => $section->id,
+                'student_id' => $student->id,
+            ]);
+        }
 
         return redirect()->back()->with('success', 'Matagumpay na naidagdag ang bagong estudyante!');
     }
@@ -500,55 +783,255 @@ class TeacherDashboardController extends Controller
         $teacher = Auth::user();
         $peers = User::where('role_id', 2)->where('id', '!=', $teacher->id)->get();
 
-        $peerQuestions = Schema::hasTable('evaluation_questions') 
-            ? DB::table('evaluation_questions')->where('form_type', 'peer')->get() 
-            : collect([]);
+        $activeCycle = Schema::hasTable('evaluation_cycles')
+            ? DB::table('evaluation_cycles')->where('status', 'active')->where('is_active', 1)->orderByDesc('id')->first()
+            : null;
+        $evaluationActive = (bool) $activeCycle;
+        $evaluationStatusCycle = $activeCycle ?: (Schema::hasTable('evaluation_cycles')
+            ? DB::table('evaluation_cycles')->orderByDesc('id')->first()
+            : null);
+
+        $peerForm = Schema::hasTable('evaluation_forms')
+            ? DB::table('evaluation_forms')->where('form_type', 'peer')->where('is_active', 1)->orderByDesc('id')->first()
+            : null;
+        $selfForm = Schema::hasTable('evaluation_forms')
+            ? DB::table('evaluation_forms')->where('form_type', 'self')->where('is_active', 1)->orderByDesc('id')->first()
+            : null;
+
+        $peerQuestionsQuery = Schema::hasTable('evaluation_questions')
+            ? DB::table('evaluation_questions')->where('form_type', 'peer')->where('is_active', 1)
+            : null;
+        if ($peerQuestionsQuery && $peerForm && Schema::hasColumn('evaluation_questions', 'form_id')) {
+            $peerQuestionsQuery->where('form_id', $peerForm->id);
+        }
+        $peerQuestions = $peerQuestionsQuery ? $peerQuestionsQuery->orderBy('order_num')->get() : collect([]);
             
-        $selfQuestions = Schema::hasTable('evaluation_questions') 
-            ? DB::table('evaluation_questions')->where('form_type', 'self')->get() 
+        $selfQuestionsQuery = Schema::hasTable('evaluation_questions')
+            ? DB::table('evaluation_questions')->where('form_type', 'self')->where('is_active', 1)
+            : null;
+        if ($selfQuestionsQuery && $selfForm && Schema::hasColumn('evaluation_questions', 'form_id')) {
+            $selfQuestionsQuery->where('form_id', $selfForm->id);
+        }
+        $selfQuestions = $selfQuestionsQuery ? $selfQuestionsQuery->orderBy('order_num')->get() : collect([]);
+
+        $peerRatingScales = ($peerForm && Schema::hasTable('evaluation_rating_scales'))
+            ? DB::table('evaluation_rating_scales')->where('form_id', $peerForm->id)->orderBy('order_num')->get()
+            : collect([]);
+        $selfRatingScales = ($selfForm && Schema::hasTable('evaluation_rating_scales'))
+            ? DB::table('evaluation_rating_scales')->where('form_id', $selfForm->id)->orderBy('order_num')->get()
             : collect([]);
 
-        return view('teacher.evaluations.index', compact('teacher', 'peers', 'peerQuestions', 'selfQuestions'));
+        $loadEvaluationSections = function ($form, $questions) {
+            if (!$form || !Schema::hasTable('evaluation_sections')) {
+                return $questions->groupBy('category')->map(function ($items, $title) {
+                    return (object) ['title' => $title, 'subheadings' => collect(), 'direct_questions' => $items->values()];
+                })->values();
+            }
+
+            return DB::table('evaluation_sections')
+                ->where('form_id', $form->id)
+                ->orderBy('order_num')
+                ->get()
+                ->map(function ($section) use ($questions) {
+                    $section->subheadings = Schema::hasTable('evaluation_subheadings')
+                        ? DB::table('evaluation_subheadings')->where('section_id', $section->id)->orderBy('order_num')->get()->map(function ($subheading) use ($questions) {
+                            $subheading->questions = $questions->where('subheading_id', $subheading->id)->values();
+                            return $subheading;
+                        })
+                        : collect();
+                    $section->direct_questions = $questions->where('section_id', $section->id)->whereNull('subheading_id')->values();
+                    return $section;
+                });
+        };
+
+        $peerSections = $loadEvaluationSections($peerForm, $peerQuestions);
+        $selfSections = $loadEvaluationSections($selfForm, $selfQuestions);
+        $hasPeerLikertQuestions = $peerQuestions->contains(fn ($question) => ($question->type ?? 'likert') === 'likert');
+
+        $evaluatedPeerIds = collect();
+        if ($activeCycle && Schema::hasTable('peer_evaluations')) {
+            $evaluatedPeerQuery = DB::table('peer_evaluations')->where('evaluator_id', $teacher->id);
+            if (Schema::hasColumn('peer_evaluations', 'evaluation_cycle_id')) {
+                $evaluatedPeerQuery->where('evaluation_cycle_id', $activeCycle->id);
+            }
+            $evaluatedPeerIds = $evaluatedPeerQuery->pluck('evaluatee_id');
+        }
+
+        $selfEvaluationDone = false;
+        if ($evaluationStatusCycle && Schema::hasTable('self_evaluations')) {
+            $selfQuery = DB::table('self_evaluations')->where('teacher_id', $teacher->id);
+            if (Schema::hasColumn('self_evaluations', 'evaluation_cycle_id')) {
+                $selfQuery->where('evaluation_cycle_id', $evaluationStatusCycle->id);
+            }
+            $selfEvaluationDone = $selfQuery->exists();
+        }
+
+        $peerEvaluationDone = false;
+        if ($evaluationStatusCycle && Schema::hasTable('peer_evaluations')) {
+            $peerEvaluationDone = DB::table('peer_evaluations')
+                ->where('evaluator_id', $teacher->id)
+                ->where('evaluation_cycle_id', $evaluationStatusCycle->id)
+                ->exists();
+        }
+        $evaluationCompleted = $peerEvaluationDone || $selfEvaluationDone;
+        $allTeacherEvaluationsDone = $peerEvaluationDone && $selfEvaluationDone;
+        $publishedEvaluationResult = null;
+        if ($evaluationStatusCycle && Schema::hasTable('teacher_evaluation_publications')) {
+            $publication = DB::table('teacher_evaluation_publications')
+                ->where('evaluation_cycle_id', $evaluationStatusCycle->id)
+                ->where('teacher_id', $teacher->id)
+                ->where('is_published', 1)
+                ->first();
+
+            if ($publication) {
+                $weights = [
+                    'student' => (float) ($evaluationStatusCycle->student_weight ?? 40),
+                    'principal' => (float) ($evaluationStatusCycle->principal_weight ?? 40),
+                    'self' => (float) ($evaluationStatusCycle->self_weight ?? 10),
+                    'peer' => (float) ($evaluationStatusCycle->peer_weight ?? 10),
+                ];
+                $averages = ['student' => null, 'principal' => null, 'self' => null, 'peer' => null];
+
+                if (Schema::hasTable('peer_evaluations')) {
+                    $averages['peer'] = DB::table('peer_evaluations')
+                        ->where('evaluation_cycle_id', $evaluationStatusCycle->id)
+                        ->where('evaluatee_id', $teacher->id)
+                        ->avg('average_score');
+                }
+                if (Schema::hasTable('self_evaluations')) {
+                    $selfTeacherColumn = Schema::hasColumn('self_evaluations', 'teacher_id') ? 'teacher_id' : 'user_id';
+                    $averages['self'] = DB::table('self_evaluations')
+                        ->where('evaluation_cycle_id', $evaluationStatusCycle->id)
+                        ->where($selfTeacherColumn, $teacher->id)
+                        ->avg('average_score');
+                }
+                if (Schema::hasTable('evaluation_submissions')) {
+                    $submissionAverages = DB::table('evaluation_submissions')
+                        ->where('evaluation_cycle_id', $evaluationStatusCycle->id)
+                        ->where('teacher_id', $teacher->id)
+                        ->whereIn('form_type', ['student', 'principal'])
+                        ->select('form_type')
+                        ->selectRaw('AVG(average_score) as average_score')
+                        ->groupBy('form_type')
+                        ->get()
+                        ->keyBy('form_type');
+                    $averages['student'] = optional($submissionAverages->get('student'))->average_score;
+                    $averages['principal'] = optional($submissionAverages->get('principal'))->average_score;
+                }
+
+                $weightedScore = collect($averages)->reduce(function ($total, $average, $type) use ($weights) {
+                    return $total + ($average === null ? 0 : ((float) $average / 5) * $weights[$type]);
+                }, 0);
+
+                $publishedEvaluationResult = (object) [
+                    'weighted_score' => round($weightedScore, 2),
+                    'averages' => $averages,
+                    'weights' => $weights,
+                    'published_at' => $publication->published_at,
+                ];
+            }
+        }
+
+        return view('teacher.evaluations.adaptive', compact(
+            'teacher', 'peers', 'peerQuestions', 'selfQuestions', 'activeCycle',
+            'evaluationActive', 'evaluatedPeerIds', 'selfEvaluationDone', 'peerEvaluationDone', 'evaluationCompleted', 'allTeacherEvaluationsDone', 'publishedEvaluationResult',
+            'evaluationStatusCycle', 'peerForm', 'selfForm', 'peerRatingScales', 'selfRatingScales', 'peerSections',
+            'selfSections', 'hasPeerLikertQuestions'
+        ));
     }
 
     public function storePeerEvaluation(Request $request)
     {
+        $activeCycle = Schema::hasTable('evaluation_cycles')
+            ? DB::table('evaluation_cycles')->where('status', 'active')->where('is_active', 1)->orderByDesc('id')->first()
+            : null;
+        if (!$activeCycle) {
+            return back()->with('error', 'There is no active faculty evaluation at this time.');
+        }
+
         $request->validate([
             'evaluatee_id' => 'required|exists:users,id',
             'ratings'      => 'required|array',
         ]);
 
-        $scores = array_values($request->ratings);
+        $likertQuestionIds = Schema::hasTable('evaluation_questions')
+            ? DB::table('evaluation_questions')
+                ->where('form_type', 'peer')
+                ->when(Schema::hasColumn('evaluation_questions', 'type'), fn ($query) => $query->where('type', 'likert'))
+                ->pluck('id')
+                ->map(fn ($id) => (string) $id)
+                ->all()
+            : [];
+        $scores = collect((array) $request->input('ratings', []))
+            ->filter(fn ($score, $questionId) => (empty($likertQuestionIds) || in_array((string) $questionId, $likertQuestionIds, true)) && is_numeric($score))
+            ->values()
+            ->all();
         $averageScore = count($scores) > 0 ? array_sum($scores) / count($scores) : 0;
 
-        DB::table('peer_evaluations')->insert([
+        $duplicateQuery = DB::table('peer_evaluations')
+            ->where('evaluator_id', Auth::id())
+            ->where('evaluatee_id', $request->evaluatee_id);
+        if (Schema::hasColumn('peer_evaluations', 'evaluation_cycle_id')) {
+            $duplicateQuery->where('evaluation_cycle_id', $activeCycle->id);
+        }
+        if ($duplicateQuery->exists()) {
+            return back()->with('error', 'You have already evaluated this faculty member for the active cycle.');
+        }
+
+        $evaluationData = [
             'evaluator_id'  => Auth::id(),
             'evaluatee_id'  => $request->evaluatee_id,
             'average_score' => $averageScore,
             'comments'      => $request->input('comments'),
             'created_at'    => now(),
             'updated_at'    => now(),
-        ]);
+        ];
+        if (Schema::hasColumn('peer_evaluations', 'evaluation_cycle_id')) {
+            $evaluationData['evaluation_cycle_id'] = $activeCycle->id;
+        }
+        DB::table('peer_evaluations')->insert($evaluationData);
 
         return back()->with('success', 'Peer evaluation submitted successfully!');
     }
 
     public function storeSelfEvaluation(Request $request)
     {
+        $activeCycle = Schema::hasTable('evaluation_cycles')
+            ? DB::table('evaluation_cycles')->where('status', 'active')->where('is_active', 1)->orderByDesc('id')->first()
+            : null;
+        if (!$activeCycle) {
+            return back()->with('error', 'There is no active faculty evaluation at this time.');
+        }
+
         $request->validate([
             'ratings' => 'required|array',
         ]);
 
-        $scores = array_values($request->ratings);
+        $likertQuestionIds = Schema::hasTable('evaluation_questions')
+            ? DB::table('evaluation_questions')
+                ->where('form_type', 'self')
+                ->when(Schema::hasColumn('evaluation_questions', 'type'), fn ($query) => $query->where('type', 'likert'))
+                ->pluck('id')
+                ->map(fn ($id) => (string) $id)
+                ->all()
+            : [];
+        $scores = collect((array) $request->input('ratings', []))
+            ->filter(fn ($score, $questionId) => (empty($likertQuestionIds) || in_array((string) $questionId, $likertQuestionIds, true)) && is_numeric($score))
+            ->values()
+            ->all();
         $averageScore = count($scores) > 0 ? array_sum($scores) / count($scores) : 0;
 
-        DB::table('self_evaluations')->insert([
+        $evaluationData = [
             'teacher_id'    => Auth::id(),
             'average_score' => $averageScore,
             'comments'      => $request->input('comments'),
             'created_at'    => now(),
             'updated_at'    => now(),
-        ]);
+        ];
+        if (Schema::hasColumn('self_evaluations', 'evaluation_cycle_id')) {
+            $evaluationData['evaluation_cycle_id'] = $activeCycle->id;
+        }
+        DB::table('self_evaluations')->insert($evaluationData);
 
         return back()->with('success', 'Self-evaluation submitted successfully!');
     }

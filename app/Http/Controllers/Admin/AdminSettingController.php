@@ -29,6 +29,7 @@ class AdminSettingController extends Controller
             : collect();
 
         return view('admin.settings.index', [
+            'adminUser' => auth()->user(),
             'activePeriod' => $activePeriod,
             'schoolYearGroups' => $schoolYearGroups,
             'smsConfig' => $smsGateway->getConfig(),

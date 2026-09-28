@@ -3,20 +3,21 @@
 @section('title', 'System Configuration - SIATRACK')
 
 @section('content')
-<div class="w-full min-h-screen flex flex-col bg-slate-50/70 p-6 lg:p-10 space-y-8" x-data="{ showAddSchoolYear: false, showAllSchoolYears: false, showEditDates: false, smsTesting: false, smsResult: null }">
+<div class="w-full min-h-screen flex flex-col bg-slate-50" x-data="{ showAddSchoolYear: false, showAllSchoolYears: false, showEditDates: false, smsTesting: false, smsResult: null }">
     
-    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-3xl border-2 border-slate-200 shadow-xs">
-        <div class="flex items-center gap-3.5">
+    <header class="bg-white border-b-2 border-slate-200 px-6 lg:px-10 py-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4 sticky top-0 z-20 shadow-xs">
+        <div class="flex items-center gap-4">
             <div class="w-10 h-10 rounded-xl bg-[#590d0d] text-amber-300 flex items-center justify-center text-base shadow-xs shrink-0">
                 <i class="fa-solid fa-gear"></i>
             </div>
             <div>
                 <h1 class="text-xl lg:text-2xl font-black text-slate-900 tracking-tight">System Configuration</h1>
-                <p class="text-xs text-slate-500 font-bold mt-0.5">Manage the active academic year and connected SMS gateway.</p>
+                <p class="text-xs text-slate-500 font-bold mt-0.5">Manage your administrator account, school year, messaging gateway, and NFC bridge.</p>
             </div>
         </div>
-    </div>
+    </header>
 
+    <main class="flex-1 p-6 lg:px-10 lg:py-8 space-y-8 max-w-[1600px] mx-auto w-full">
     @if(session('success'))
         <div class="p-4 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold rounded-2xl">
             {{ session('success') }}
@@ -29,10 +30,10 @@
         </div>
     @endif
 
-    <div class="grid grid-cols-1 xl:grid-cols-2 gap-6 w-full">
+    <div class="space-y-6 w-full">
 
         <!-- 1. School Year -->
-        <section class="p-6 bg-white rounded-3xl border-2 border-slate-200 shadow-xs xl:col-span-1">
+        <section class="p-6 bg-white rounded-3xl border-2 border-slate-200 shadow-xs">
             <div class="flex items-start gap-4">
                 <div class="w-12 h-12 rounded-2xl bg-amber-50 border-2 border-amber-200 text-amber-700 flex items-center justify-center text-xl shrink-0">
                     <i class="fa-solid fa-calendar-days"></i>
@@ -76,7 +77,7 @@
         </section>
 
         <!-- SMS API -->
-        <div class="p-6 bg-white rounded-3xl border-2 border-slate-200 shadow-xs xl:col-span-1">
+        <div class="p-6 bg-white rounded-3xl border-2 border-slate-200 shadow-xs">
             <div class="flex items-start gap-4 mb-5">
                 <div class="w-12 h-12 rounded-2xl bg-emerald-50 border-2 border-emerald-200 text-emerald-700 flex items-center justify-center text-xl shrink-0">
                     <i class="fa-solid fa-tower-broadcast"></i>
@@ -121,6 +122,91 @@
                 </div>
             </form>
         </div>
+
+        <!-- Administrator Account -->
+        <section class="p-6 bg-white rounded-3xl border-2 border-slate-200 shadow-xs">
+            <div class="flex items-start gap-4 mb-6">
+                <div class="w-12 h-12 rounded-2xl bg-red-50 border-2 border-red-200 text-[#8b1818] flex items-center justify-center text-xl shrink-0">
+                    <i class="fa-solid fa-user-shield"></i>
+                </div>
+                <div>
+                    <h3 class="text-base font-black text-slate-900">Administrator Account</h3>
+                    <p class="text-xs text-slate-500 font-semibold mt-1">Update your name, email address, phone number, or password.</p>
+                </div>
+            </div>
+
+            @if(session('profile_success'))
+                <div class="mb-5 p-4 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold rounded-2xl">
+                    {{ session('profile_success') }}
+                </div>
+            @endif
+
+            <form method="POST" action="{{ route('admin.profile.update') }}" class="space-y-5" x-data="{ newPassword: '' }">
+                @csrf
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label for="admin_first_name" class="block text-xs font-black text-slate-700 mb-1.5">First Name <span class="text-red-600">*</span></label>
+                        <input id="admin_first_name" name="first_name" type="text" required value="{{ old('first_name', $adminUser->first_name) }}"
+                               class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-semibold focus:outline-none focus:border-[#8b1818] focus:bg-white transition">
+                    </div>
+                    <div>
+                        <label for="admin_last_name" class="block text-xs font-black text-slate-700 mb-1.5">Last Name <span class="text-red-600">*</span></label>
+                        <input id="admin_last_name" name="last_name" type="text" required value="{{ old('last_name', $adminUser->last_name) }}"
+                               class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-semibold focus:outline-none focus:border-[#8b1818] focus:bg-white transition">
+                    </div>
+                    <div>
+                        <label for="admin_email" class="block text-xs font-black text-slate-700 mb-1.5">Email <span class="text-red-600">*</span></label>
+                        <input id="admin_email" name="email" type="email" required value="{{ old('email', $adminUser->email) }}"
+                               class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-semibold focus:outline-none focus:border-[#8b1818] focus:bg-white transition">
+                    </div>
+                    <div>
+                        <label for="admin_phone" class="block text-xs font-black text-slate-700 mb-1.5">Phone Number</label>
+                        <input id="admin_phone" name="phone_number" type="text" value="{{ old('phone_number', $adminUser->phone_number ?? $adminUser->contact_number ?? '') }}"
+                               class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-semibold focus:outline-none focus:border-[#8b1818] focus:bg-white transition">
+                    </div>
+                    <div>
+                        <label for="admin_password" class="block text-xs font-black text-slate-700 mb-1.5">New Password</label>
+                        <input id="admin_password" name="password" type="password" x-model="newPassword" autocomplete="new-password" placeholder="Leave blank to keep the current password"
+                               class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-semibold focus:outline-none focus:border-[#8b1818] focus:bg-white transition">
+                    </div>
+                    <div>
+                        <label for="admin_password_confirmation" class="block text-xs font-black text-slate-700 mb-1.5">Confirm New Password</label>
+                        <input id="admin_password_confirmation" name="password_confirmation" type="password" :required="newPassword.length > 0" :disabled="newPassword.length === 0" autocomplete="new-password" placeholder="Enter only when changing password"
+                               class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-semibold focus:outline-none focus:border-[#8b1818] focus:bg-white transition">
+                    </div>
+                </div>
+                <div class="flex justify-end">
+                    <button type="submit" class="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-[#590d0d] hover:bg-[#701010] text-white text-xs font-black transition shadow-md">
+                        <i class="fa-solid fa-floppy-disk text-amber-300"></i> Save Account
+                    </button>
+                </div>
+            </form>
+        </section>
+
+        <!-- NFC Bridge Package -->
+        <section class="p-6 bg-white rounded-3xl border-2 border-slate-200 shadow-xs">
+            <div class="flex flex-col md:flex-row md:items-center justify-between gap-5">
+                <div class="flex items-start gap-4">
+                    <div class="w-12 h-12 rounded-2xl bg-slate-900 border-2 border-slate-700 text-amber-300 flex items-center justify-center text-xl shrink-0">
+                        <i class="fa-solid fa-id-card"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-base font-black text-slate-900">NFC Bridge Package</h3>
+                        <p class="text-xs text-slate-500 font-semibold mt-1">
+                            Download one complete package for the Windows computer connected to the ACR122U reader.
+                        </p>
+                        <p class="text-[11px] text-slate-400 font-semibold mt-2">
+                            Includes the Python bridge, bundled runtime, ACR122U driver archive, and starter.
+                        </p>
+                    </div>
+                </div>
+                <a href="{{ route('admin.nfc.bridge.package') }}"
+                   class="inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-[#590d0d] hover:bg-[#701010] text-white text-xs font-black transition shadow-md shrink-0">
+                    <i class="fa-solid fa-file-zipper text-amber-300"></i>
+                    Download NFC Package
+                </a>
+            </div>
+        </section>
 
     </div>
 
@@ -218,6 +304,6 @@
             </div>
         </div>
     </div>
-
+    </main>
 </div>
 @endsection

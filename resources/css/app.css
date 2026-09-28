@@ -1,3 +1,14 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+[x-cloak] {
+    display: none !important;
+}
+
+html.sidebar-collapsed aside#app-sidebar {
+    width: 5rem !important;
+}
+html.sidebar-collapsed main#app-main {
+    padding-left: 5rem !important;
+}

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Auth;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Hash;
 use App\Models\User;
 
 class LoginController extends Controller
@@ -18,7 +19,7 @@ class LoginController extends Controller
     }
 
     /**
-     * Unified login handler: ID Number or Email with plain-text password for all roles.
+     * Unified login handler: ID Number or Email with hashed or plain-text password for all roles.
      */
     public function login(Request $request)
     {
@@ -29,13 +30,34 @@ class LoginController extends Controller
 
         $loginInput = trim($request->username);
 
-        // Hanapin ang user gamit ang id_number o email (case-insensitive)
-        $user = User::where('id_number', $loginInput)
-                    ->orWhereRaw('LOWER(email) = ?', [strtolower($loginInput)])
+        // Students use usernames; admin and faculty may continue using email.
+        $user = User::where(function ($query) use ($loginInput) {
+                        $query->whereRaw('LOWER(username) = ?', [strtolower($loginInput)])
+                            ->orWhereRaw('LOWER(email) = ?', [strtolower($loginInput)]);
+                    })
                     ->first();
 
-        // Direct string comparison para sa plain-text password
-        if ($user && $user->password === $request->password) {
+        // Older seeded/imported accounts may contain plaintext passwords. Only call
+        // Hash::check for recognized password hashes because Laravel throws for
+        // unsupported formats instead of returning false.
+        $passwordMatches = false;
+        $passwordWasPlaintext = false;
+        if ($user) {
+            $storedPassword = (string) $user->password;
+            $passwordInfo = password_get_info($storedPassword);
+
+            if (($passwordInfo['algo'] ?? 0) !== 0) {
+                $passwordMatches = Hash::check($request->password, $storedPassword);
+            } else {
+                $passwordMatches = hash_equals($storedPassword, (string) $request->password);
+                $passwordWasPlaintext = $passwordMatches;
+            }
+        }
+
+        if ($user && $passwordMatches) {
+            if ($passwordWasPlaintext) {
+                $user->forceFill(['password' => Hash::make($request->password)])->save();
+            }
 
             // Check kung active ang account
             if (isset($user->is_active) && ! $user->is_active) {
@@ -54,8 +76,8 @@ class LoginController extends Controller
             if (
                 $user->role_id == 1 || 
                 $user->role_id == 4 || 
-                (is_object($user->role) && in_array(strtolower($user->role->name), ['admin', 'superadmin_viewer', 'director'])) || 
-                (isset($user->role) && in_array(strtolower($user->role), ['admin', 'superadmin_viewer', 'director']))
+                (is_object($user->role) && in_array(strtolower($user->role->name), ['admin', 'superadmin_viewer', 'director', 'management'])) || 
+                (isset($user->role) && in_array(strtolower($user->role), ['admin', 'superadmin_viewer', 'director', 'management']))
             ) {
                 $actualRole = 'admin';
             } elseif (
@@ -75,7 +97,7 @@ class LoginController extends Controller
             // Redirect sa kani-kanilang dashboard
             return match ($actualRole) {
                 'admin'   => redirect()->route('admin.dashboard'),
-                'teacher' => redirect()->route('teacher.attendance'),
+                'teacher' => redirect()->route('teacher.dashboard'),
                 'student' => redirect()->route('student.dashboard'),
                 default   => redirect('/'),
             };

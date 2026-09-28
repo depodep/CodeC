@@ -4,6 +4,7 @@ namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Schema;
 
 class DefaultUsersSeeder extends Seeder
@@ -15,45 +16,44 @@ class DefaultUsersSeeder extends Seeder
     {
         $now = now();
         $columns = Schema::getColumnListing('users');
-        $activePeriodId = Schema::hasTable('academic_periods')
-            ? DB::table('academic_periods')->where('is_active', 1)->value('id')
-            : null;
+        $activePeriodId = null;
+        if (Schema::hasTable('academic_periods')) {
+            $activePeriodId = DB::table('academic_periods')->where('is_active', 1)->value('id');
+            if (!$activePeriodId) {
+                $activePeriodId = DB::table('academic_periods')->insertGetId([
+                    'school_year' => '2025-2026',
+                    'semester'    => '1st Semester',
+                    'is_active'   => 1,
+                    'created_at'  => $now,
+                    'updated_at'  => $now,
+                ]);
+            }
+        }
 
         $users = [
             [
-                'id_number' => 'ADM-2026-001',
-                'role_id' => 1,
-                'first_name' => 'System',
-                'last_name' => 'Administrator',
-                'gender' => 'Male',
-                'email' => 'admin@siatrack.edu.ph',
+                'id_number'    => 'ADM-2026-001',
+                'role_id'      => 1,
+                'role_name'    => 'admin',
+                'first_name'   => 'System',
+                'last_name'    => 'Administrator',
+                'gender'       => 'Male',
+                'email'        => 'admin@siatrack.edu.ph',
                 'phone_number' => '09171234567',
-                'password' => 'AdminPass2026!',
+                'section'      => null,
+                'password'     => Hash::make('AdminPass2026!'),
             ],
             [
-                'id_number' => 'FAC-TEMP-001',
-                'role_id' => 2,
-                'first_name' => 'Temporary',
-                'last_name' => 'Faculty',
-                'gender' => 'Female',
-                'email' => 'temporary.faculty@siatrack.edu.ph',
-                'phone_number' => null,
-                'password' => 'FacultyPass2026!',
-            ],
-            [
-                'id_number' => 'STU-TEMP-001',
-                'role_id' => 3,
-                'first_name' => 'Temporary',
-                'last_name' => 'Student',
-                'gender' => 'Male',
-                'email' => 'temporary.student@siatrack.edu.ph',
-                'phone_number' => null,
-                'parent_name' => 'Temporary Parent',
-                'parent_phone_number' => null,
-                'grade_level' => 11,
-                'strand' => 'ICT',
-                'section' => 'Temporary',
-                'password' => 'StudentPass2026!',
+                'id_number'    => 'MNG-2026-001',
+                'role_id'      => 4,
+                'role_name'    => 'management',
+                'first_name'   => 'Executive',
+                'last_name'    => 'Director',
+                'gender'       => 'Male',
+                'email'        => 'management@siatrack.edu.ph',
+                'phone_number' => '09179998877',
+                'section'      => 'Executive Management',
+                'password'     => Hash::make('siamanagement@123'),
             ],
         ];
 
@@ -88,10 +88,7 @@ class DefaultUsersSeeder extends Seeder
                 $userData['username'] = $user['id_number'];
             }
             if (in_array('role', $columns, true)) {
-                $userData['role'] = match ($user['role_id']) {
-                    1 => 'admin',
-                    default => 'cashier',
-                };
+                $userData['role'] = $user['role_name'] ?? 'admin';
             }
             if (in_array('gender', $columns, true)) {
                 $userData['gender'] = $user['gender'];

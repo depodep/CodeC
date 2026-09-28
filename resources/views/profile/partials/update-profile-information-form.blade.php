@@ -5,7 +5,7 @@
         </h2>
 
         <p class="mt-1 text-sm text-gray-600">
-            {{ __("Update your account's profile information and email address.") }}
+            {{ __("Update your account's profile information and login credentials.") }}
         </p>
     </header>
 
@@ -23,6 +23,13 @@
             <x-input-error class="mt-2" :messages="$errors->get('name')" />
         </div>
 
+        @if ((int) $user->role_id === 3)
+        <div>
+            <x-input-label for="username" :value="__('Username')" />
+            <x-text-input id="username" name="username" type="text" class="mt-1 block w-full" :value="old('username', $user->username)" required autocomplete="username" />
+            <x-input-error class="mt-2" :messages="$errors->get('username')" />
+        </div>
+        @else
         <div>
             <x-input-label for="email" :value="__('Email')" />
             <x-text-input id="email" name="email" type="email" class="mt-1 block w-full" :value="old('email', $user->email)" required autocomplete="username" />
@@ -44,6 +51,7 @@
                         </p>
                     @endif
                 </div>
+                @endif
             @endif
         </div>
 

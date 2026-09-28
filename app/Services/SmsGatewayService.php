@@ -54,12 +54,17 @@ class SmsGatewayService
         $started = microtime(true);
         try {
             $config = $this->getConfig();
+            if (blank($config['url']) || blank($config['login']) || blank($config['password'])) {
+                return $this->checked(false, 'SMS API is not configured. Open Configure SMS API.', (int) round((microtime(true) - $started) * 1000));
+            }
             $response = $this->client($config)->post($this->apiUrl($config['url'], '/3rdparty/v1/auth/token'), [
                 'scopes' => ['messages:send'],
                 'ttl' => 60,
             ]);
             $ms = (int) round((microtime(true) - $started) * 1000);
-            if (in_array($response->status(), [401, 403], true)) return $this->checked(false, 'Authentication failed', $ms);
+            if (in_array($response->status(), [401, 403], true)) {
+                return $this->checked(false, 'SMS gateway authentication failed. Verify the API login and password in Configure SMS API.', $ms);
+            }
             if ($response->failed()) return $this->checked(false, 'Gateway returned HTTP ' . $response->status(), $ms);
             if ($response->status() !== 201 || blank($response->json('accessToken') ?? $response->json('access_token'))) {
                 return $this->checked(false, 'Gateway authentication was not confirmed.', $ms);

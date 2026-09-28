@@ -40,6 +40,28 @@
             </div>
         @endif
 
+        @if(!$evaluationActive)
+            <div class="p-6 bg-slate-50 border-2 border-slate-200 rounded-2xl flex items-start gap-4">
+                <div class="w-10 h-10 rounded-xl bg-slate-200 text-slate-500 flex items-center justify-center shrink-0">
+                    <i class="fa-solid fa-lock"></i>
+                </div>
+                <div>
+                    <h2 class="text-base font-black text-slate-800">No Active Faculty Evaluation</h2>
+                    <p class="text-xs text-slate-500 font-semibold mt-1">Faculty selection, peer evaluation, and self-evaluation are currently closed. The administrator must start an evaluation cycle before submissions can be made.</p>
+                </div>
+            </div>
+        @else
+            <div class="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div class="flex items-center gap-3">
+                    <div class="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center"><i class="fa-solid fa-unlock"></i></div>
+                    <div>
+                        <h2 class="text-sm font-black text-emerald-900">{{ $activeCycle->name }}</h2>
+                        <p class="text-xs text-emerald-700 font-semibold">Active from {{ \Carbon\Carbon::parse($activeCycle->start_date)->format('M d, Y') }} to {{ \Carbon\Carbon::parse($activeCycle->end_date)->format('M d, Y') }}</p>
+                    </div>
+                </div>
+                <span class="px-3 py-1 rounded-full bg-white text-emerald-700 border border-emerald-200 text-[10px] font-black uppercase tracking-wider">Active Cycle</span>
+            </div>
+
         <!-- Tab Navigation Buttons -->
         <div class="flex items-center gap-3 border-b border-slate-200 pb-3">
             <button onclick="switchTeacherTab('peer')" id="tabPeerBtn" class="px-5 py-2.5 rounded-xl font-black text-xs uppercase tracking-wider transition cursor-pointer bg-[#8b1818] text-white shadow-sm">
@@ -56,15 +78,17 @@
                 @csrf
                 <div class="border-b border-slate-100 pb-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div>
-                        <h2 class="text-base font-black text-slate-900 tracking-tight">Faculty Peer Evaluation Form</h2>
-                        <p class="text-xs text-slate-500 font-medium mt-0.5">Evaluate a colleague based on official criteria matrix.</p>
+                        <h2 class="text-base font-black text-slate-900 tracking-tight">{{ $peerForm->title ?? 'Faculty Peer Evaluation Form' }}</h2>
+                        <p class="text-xs text-slate-500 font-medium mt-0.5">{{ $peerForm->instructions ?? 'Evaluate a colleague based on official criteria matrix.' }}</p>
                     </div>
                     <div class="w-full md:w-72">
                         <label class="block text-[10px] font-black text-slate-700 uppercase mb-1">Select Faculty Member *</label>
                         <select name="evaluatee_id" required class="w-full py-2 px-3 text-xs font-bold rounded-lg border border-slate-300 bg-slate-50 focus:bg-white focus:border-[#8b1818] outline-none transition cursor-pointer">
                             <option value="">-- Choose Peer --</option>
                             @foreach($peers as $peer)
-                                <option value="{{ $peer->id }}">Prof. {{ $peer->first_name }} {{ $peer->last_name }}</option>
+                                <option value="{{ $peer->id }}" @disabled($evaluatedPeerIds->contains($peer->id))>
+                                    Prof. {{ $peer->first_name }} {{ $peer->last_name }}{{ $evaluatedPeerIds->contains($peer->id) ? ' (Already Evaluated)' : '' }}
+                                </option>
                             @endforeach
                         </select>
                     </div>
@@ -119,7 +143,7 @@
                     <textarea name="comments" rows="3" placeholder="Provide constructive feedback or remarks..." class="w-full p-4 text-xs font-bold rounded-xl border border-slate-300 bg-slate-50 focus:bg-white focus:border-[#8b1818] outline-none transition"></textarea>
                 </div>
 
-                <button type="submit" class="w-full py-3.5 bg-[#8b1818] hover:bg-[#731414] text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-sm transition cursor-pointer">
+                <button type="submit" class="w-full py-3.5 bg-[#8b1818] hover:bg-[#731414] text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-sm transition cursor-pointer" {{ !$peers->whereNotIn('id', $evaluatedPeerIds)->count() ? 'disabled' : '' }}>
                     Submit Peer Evaluation
                 </button>
             </form>
@@ -130,8 +154,8 @@
             <form action="{{ route('teacher.evaluations.self.store') }}" method="POST" class="bg-white p-6 lg:p-8 rounded-2xl border border-slate-200/80 shadow-xs space-y-6">
                 @csrf
                 <div class="border-b border-slate-100 pb-4">
-                    <h2 class="text-base font-black text-slate-900 tracking-tight">Faculty Self-Evaluation Form</h2>
-                    <p class="text-xs text-slate-500 font-medium mt-0.5">Reflect on your own performance based on institutional standards.</p>
+                    <h2 class="text-base font-black text-slate-900 tracking-tight">{{ $selfForm->title ?? 'Faculty Self-Evaluation Form' }}</h2>
+                    <p class="text-xs text-slate-500 font-medium mt-0.5">{{ $selfForm->instructions ?? 'Reflect on your own performance based on institutional standards.' }}</p>
                 </div>
 
                 <!-- Table Format Matrix for Self Evaluation -->
@@ -183,11 +207,13 @@
                     <textarea name="comments" rows="3" placeholder="Write your professional reflections or goals..." class="w-full p-4 text-xs font-bold rounded-xl border border-slate-300 bg-slate-50 focus:bg-white focus:border-[#8b1818] outline-none transition"></textarea>
                 </div>
 
-                <button type="submit" class="w-full py-3.5 bg-[#8b1818] hover:bg-[#731414] text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-sm transition cursor-pointer">
+                <button type="submit" class="w-full py-3.5 bg-[#8b1818] hover:bg-[#731414] text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-sm transition cursor-pointer" {{ $selfEvaluationDone ? 'disabled' : '' }}>
                     Submit Self Evaluation
                 </button>
             </form>
         </div>
+
+        @endif
 
     </main>
 </div>

@@ -57,7 +57,7 @@
         </div>
     </header>
 
-    <main class="max-w-7xl mx-auto pt-8 px-4 sm:px-6 lg:px-8 space-y-8">
+    <main class="max-w-[1700px] mx-auto pt-6 px-4 sm:px-6 lg:px-8 space-y-6">
         
         @if(session('success'))
             <div class="p-4 bg-emerald-50 border-2 border-emerald-300 text-emerald-900 text-xs font-bold rounded-2xl flex items-center justify-between shadow-xs">
@@ -70,50 +70,68 @@
         @endif
 
         <!-- Top Quantitative Number Cards -->
-        <div class="grid grid-cols-2 lg:grid-cols-5 gap-4">
-            <div class="bg-white border-2 border-slate-200 rounded-3xl p-5 shadow-xs">
+        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+            <div class="bg-white border-2 border-slate-200 rounded-3xl p-4 shadow-xs">
                 <p class="text-[10px] font-black uppercase text-slate-400">Institutional Mean</p>
-                <div class="flex items-baseline gap-1 mt-1">
+                <div class="flex items-baseline gap-1 mt-0.5">
                     <h3 class="text-2xl font-black text-[#8b1818]">{{ $overallInstMean }}</h3>
-                    <span class="text-xs font-bold text-slate-400">/ 5.00</span>
+                    <span class="text-xs font-bold text-slate-400">/ 100</span>
                 </div>
-                <span class="text-[11px] font-bold text-slate-500 mt-1 block">Global Average</span>
+                <span class="text-[10px] font-bold text-slate-500 mt-0.5 block">Weighted Global Average</span>
             </div>
 
-            <div class="bg-white border-2 border-slate-200 rounded-3xl p-5 shadow-xs">
+            <div class="bg-white border-2 border-slate-200 rounded-3xl p-4 shadow-xs">
                 <p class="text-[10px] font-black uppercase text-slate-400">Completion Rate</p>
-                <h3 class="text-2xl font-black text-slate-900 mt-1">{{ $completionRate }}%</h3>
-                <span class="text-[11px] font-bold text-emerald-600 mt-1 block">{{ $totalEvaluated }} of {{ $totalFaculty }} Evaluated</span>
+                <h3 class="text-2xl font-black text-slate-900 mt-0.5">{{ $completionRate }}%</h3>
+                <span class="text-[10px] font-bold text-emerald-600 mt-0.5 block">{{ $totalEvaluated }} of {{ $totalFaculty }} Evaluated</span>
             </div>
 
-            <div class="bg-white border-2 border-slate-200 rounded-3xl p-5 shadow-xs">
+            <div class="bg-white border-2 border-slate-200 rounded-3xl p-4 shadow-xs">
                 <p class="text-[10px] font-black uppercase text-slate-400">Total Submissions</p>
-                <h3 class="text-2xl font-black text-slate-900 mt-1">{{ $totalSubmissions }}</h3>
-                <span class="text-[11px] font-bold text-slate-500 mt-1 block">Feedback Slips</span>
+                <h3 class="text-2xl font-black text-slate-900 mt-0.5">{{ $totalSubmissions }}</h3>
+                <span class="text-[10px] font-bold text-slate-500 mt-0.5 block">Feedback Slips</span>
             </div>
 
-            <div class="bg-white border-2 border-slate-200 rounded-3xl p-5 shadow-xs">
-                <p class="text-[10px] font-black uppercase text-slate-400">Highest Faculty Mean</p>
-                <h3 class="text-2xl font-black text-emerald-700 mt-1">{{ $highestScore }}</h3>
-                <span class="text-[11px] font-bold text-slate-500 mt-1 block">Top Benchmark</span>
+            <div class="bg-white border-2 border-slate-200 rounded-3xl p-4 shadow-xs">
+                <p class="text-[10px] font-black uppercase text-slate-400">Publish Status</p>
+                <h3 class="text-2xl font-black text-blue-700 mt-0.5">{{ $publishedCount }} / {{ $totalFaculty }}</h3>
+                <span class="text-[10px] font-bold text-slate-500 mt-0.5 block truncate" title="{{ $lastPublishedAt ? 'Last Published: ' . $lastPublishedAt->format('M d, Y h:i A') : 'No results published yet' }}">
+                    {{ $lastPublishedAt ? 'Last: ' . $lastPublishedAt->format('M d, Y') : 'Not Published' }}
+                </span>
             </div>
 
-            <div class="bg-white border-2 border-slate-200 rounded-3xl p-5 shadow-xs col-span-2 lg:col-span-1">
-                <p class="text-[10px] font-black uppercase text-slate-400">Lowest Faculty Mean</p>
-                <h3 class="text-2xl font-black text-amber-700 mt-1">{{ $lowestScore }}</h3>
-                <span class="text-[11px] font-bold text-slate-500 mt-1 block">Needs Attention</span>
+            <div class="bg-white border-2 border-slate-200 rounded-3xl p-4 shadow-xs">
+                <p class="text-[10px] font-black uppercase text-slate-400">Highest Mean</p>
+                <h3 class="text-2xl font-black text-emerald-700 mt-0.5">{{ $highestScore }}</h3>
+                <span class="text-[10px] font-bold text-slate-500 mt-0.5 block">Top Benchmark</span>
+            </div>
+
+            <div class="bg-white border-2 border-slate-200 rounded-3xl p-4 shadow-xs">
+                <p class="text-[10px] font-black uppercase text-slate-400">Lowest Mean</p>
+                <h3 class="text-2xl font-black text-amber-700 mt-0.5">{{ $lowestScore }}</h3>
+                <span class="text-[10px] font-bold text-slate-500 mt-0.5 block">Needs Attention</span>
             </div>
         </div>
+
+        @if(isset($selectedCycle) && $selectedCycle)
+            <div class="flex flex-wrap items-center gap-2 px-1 text-[10px] font-black uppercase tracking-wider text-slate-500">
+                <span class="mr-1">Current weights:</span>
+                <span class="px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">Student {{ $weights['student'] }}%</span>
+                <span class="px-2.5 py-1 rounded-full bg-purple-50 text-purple-800 border border-purple-200">Principal {{ $weights['principal'] }}%</span>
+                <span class="px-2.5 py-1 rounded-full bg-amber-50 text-amber-800 border border-amber-200">Self {{ $weights['self'] }}%</span>
+                <span class="px-2.5 py-1 rounded-full bg-blue-50 text-blue-800 border border-blue-200">Peer {{ $weights['peer'] }}%</span>
+            </div>
+        @endif
 
         <!-- Visual Analytics Graphs Section -->
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <!-- Graph 1: Rating Distribution (Doughnut Chart) -->
-            <div class="bg-white border-2 border-slate-200 rounded-3xl p-6 sm:p-7 shadow-xs flex flex-col justify-between space-y-4">
+            <div class="bg-white border-2 border-slate-200 rounded-3xl p-5 shadow-xs flex flex-col justify-between space-y-3">
                 <div>
                     <h3 class="text-base font-black text-slate-900">Rating Distribution</h3>
                     <p class="text-xs text-slate-500 font-bold">Faculty categorization for this evaluation</p>
                 </div>
-                <div class="relative w-full h-56 flex items-center justify-center">
+                <div class="relative w-full h-48 flex items-center justify-center">
                     <canvas id="distributionChart"></canvas>
                 </div>
                 <div class="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100 text-[11px] font-bold">
@@ -125,22 +143,22 @@
             </div>
 
             <!-- Graph 2: Individual Faculty Comparison (Bar Chart) -->
-            <div class="bg-white border-2 border-slate-200 rounded-3xl p-6 sm:p-7 shadow-xs lg:col-span-2 flex flex-col justify-between space-y-4">
+            <div class="bg-white border-2 border-slate-200 rounded-3xl p-5 shadow-xs lg:col-span-2 flex flex-col justify-between space-y-3">
                 <div class="flex items-center justify-between">
                     <div>
                         <h3 class="text-base font-black text-slate-900">Faculty Comparative Performance</h3>
-                        <p class="text-xs text-slate-500 font-bold">Individual mean score benchmark (out of 5.00)</p>
+                        <p class="text-xs text-slate-500 font-bold">Weighted faculty score benchmark (out of 100)</p>
                     </div>
-                    <span class="text-xs font-black text-slate-400">Scale 0.00 - 5.00</span>
+                    <span class="text-xs font-black text-slate-400">Scale 0 - 100</span>
                 </div>
-                <div class="relative w-full h-64">
+                <div class="relative w-full h-56">
                     <canvas id="comparisonChart"></canvas>
                 </div>
             </div>
         </div>
 
-        <!-- Search Filter -->
-        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <!-- Search & Bulk Publish Action Bar -->
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white border-2 border-slate-200/90 rounded-3xl p-3.5 shadow-xs">
             <form method="GET" action="{{ route('admin.evaluations.results') }}" class="relative max-w-md w-full">
                 @if(isset($selectedCycle) && $selectedCycle)
                     <input type="hidden" name="cycle_id" value="{{ $selectedCycle->id }}">
@@ -149,108 +167,160 @@
                        name="search" 
                        value="{{ $search }}" 
                        placeholder="Search faculty name or email..." 
-                       class="w-full pl-11 pr-4 py-2.5 rounded-2xl border-2 border-slate-200 bg-white text-xs font-bold text-slate-800 placeholder-slate-400 focus:border-[#8b1818] outline-none shadow-xs">
-                <i class="fa-solid fa-magnifying-glass absolute left-4 top-3.5 text-slate-400 text-xs"></i>
+                       class="w-full pl-11 pr-4 py-2 rounded-2xl border-2 border-slate-200 bg-slate-50 text-xs font-bold text-slate-800 placeholder-slate-400 focus:border-[#8b1818] outline-none shadow-xs">
+                <i class="fa-solid fa-magnifying-glass absolute left-4 top-3 text-slate-400 text-xs"></i>
             </form>
+
+            @if(isset($selectedCycle) && $selectedCycle)
+                <div class="flex items-center gap-2.5 shrink-0">
+                    <form method="POST" action="{{ route('admin.evaluations.toggle-all-publish') }}" onsubmit="return confirm('Publish evaluation results for ALL faculty members in this cycle?');">
+                        @csrf
+                        <input type="hidden" name="evaluation_cycle_id" value="{{ $selectedCycle->id }}">
+                        <input type="hidden" name="is_published" value="1">
+                        <button type="submit" class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs uppercase tracking-wider transition shadow-sm flex items-center gap-2">
+                            <i class="fa-solid fa-circle-check text-white"></i>
+                            <span>Publish All</span>
+                        </button>
+                    </form>
+
+                    <form method="POST" action="{{ route('admin.evaluations.toggle-all-publish') }}" onsubmit="return confirm('Unpublish evaluation results for ALL faculty members in this cycle?');">
+                        @csrf
+                        <input type="hidden" name="evaluation_cycle_id" value="{{ $selectedCycle->id }}">
+                        <input type="hidden" name="is_published" value="0">
+                        <button type="submit" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-900 text-white font-black text-xs uppercase tracking-wider transition shadow-sm flex items-center gap-2">
+                            <i class="fa-solid fa-circle-xmark text-rose-400"></i>
+                            <span>Unpublish All</span>
+                        </button>
+                    </form>
+                </div>
+            @endif
         </div>
 
-        <!-- Detailed Table with Publish Controls -->
+        <!-- Detailed Table with Numbering & Compact Rows -->
         <div class="bg-white border-2 border-slate-200 rounded-3xl overflow-hidden shadow-xs">
-            <table class="w-full text-left border-collapse">
-                <thead>
-                    <tr class="border-b-2 border-slate-200 bg-slate-50/80 text-[11px] font-black uppercase text-slate-500 tracking-wider">
-                        <th class="py-4 px-6">Faculty Member</th>
-                        <th class="py-4 px-6">Faculty ID / Email</th>
-                        <th class="py-4 px-6 text-center">Submissions</th>
-                        <th class="py-4 px-6 text-center">Mean Score</th>
-                        <th class="py-4 px-6 text-center">Descriptive Rating</th>
-                        <th class="py-4 px-6 text-center">Published Status</th>
-                        <th class="py-4 px-6 text-right">Actions</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-slate-100 text-sm font-semibold text-slate-800">
-                    @forelse($facultyMetrics as $member)
-                        <tr class="hover:bg-slate-50/70 transition">
-                            <td class="py-4 px-6">
-                                <div class="flex items-center gap-3">
-                                    <div class="w-10 h-10 rounded-2xl bg-red-100 border border-red-200 text-[#8b1818] font-black text-xs flex items-center justify-center shrink-0">
-                                        {{ strtoupper(substr($member->first_name, 0, 1)) }}{{ strtoupper(substr($member->last_name, 0, 1)) }}
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse min-w-[1000px]">
+                    <thead>
+                        <tr class="border-b-2 border-slate-200 bg-slate-50/80 text-[11px] font-black uppercase text-slate-500 tracking-wider">
+                            <th class="py-3.5 px-3 text-center w-10 whitespace-nowrap">#</th>
+                            <th class="py-3.5 px-4 whitespace-nowrap">Faculty Member</th>
+                            <th class="py-3.5 px-4 whitespace-nowrap">Faculty ID / Email</th>
+                            <th class="py-3.5 px-4 text-center whitespace-nowrap">Submissions Breakdown</th>
+                            <th class="py-3.5 px-4 text-center whitespace-nowrap">Weighted Score</th>
+                            <th class="py-3.5 px-4 text-center whitespace-nowrap">Mean Score</th>
+                            <th class="py-3.5 px-4 text-center whitespace-nowrap">Descriptive Rating</th>
+                            <th class="py-3.5 px-4 text-center whitespace-nowrap">Published Status</th>
+                            <th class="py-3.5 px-4 text-right whitespace-nowrap">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100 text-xs font-semibold text-slate-800">
+                        @forelse($facultyMetrics as $index => $member)
+                            <tr class="hover:bg-slate-50/80 transition">
+                                <td class="py-2.5 px-3 text-center text-slate-400 font-mono font-bold">{{ $index + 1 }}</td>
+                                <td class="py-2.5 px-4 whitespace-nowrap">
+                                    <div class="flex items-center gap-2.5">
+                                        <div class="w-8 h-8 rounded-xl bg-red-100 border border-red-200 text-[#8b1818] font-black text-[11px] flex items-center justify-center shrink-0">
+                                            {{ strtoupper(substr($member->first_name, 0, 1)) }}{{ strtoupper(substr($member->last_name, 0, 1)) }}
+                                        </div>
+                                        <div>
+                                            <h4 class="font-extrabold text-slate-900 leading-tight text-xs">{{ $member->name }}</h4>
+                                            @if(!empty($member->is_adviser))
+                                                <span class="inline-flex items-center gap-1 text-[10px] font-extrabold text-amber-800 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200" title="Assigned Section Adviser">
+                                                    <i class="fa-solid fa-user-shield text-[9px] text-amber-600"></i>
+                                                    <span>{{ $member->role_display }}</span>
+                                                </span>
+                                            @else
+                                                <span class="text-[10px] font-bold text-slate-500">{{ $member->role_display ?? 'Subject Teacher' }}</span>
+                                            @endif
+                                        </div>
                                     </div>
-                                    <div>
-                                        <h4 class="font-extrabold text-slate-900 leading-tight">{{ $member->name }}</h4>
-                                        <span class="text-[11px] font-bold text-slate-400">Teaching Faculty</span>
+                                </td>
+                                <td class="py-2.5 px-4 whitespace-nowrap">
+                                    <p class="text-xs font-mono text-slate-700 leading-tight">{{ $member->email }}</p>
+                                    <span class="text-[10px] font-bold text-slate-400 uppercase">ID: {{ $member->id_number }}</span>
+                                </td>
+                                <td class="py-3 px-4 text-center whitespace-nowrap">
+                                    <div class="flex flex-col items-center justify-center gap-1">
+                                        <!-- Top Line: Total Submitted -->
+                                        <span class="px-2.5 py-0.5 rounded-full bg-slate-900 text-white font-black text-xs shadow-2xs">
+                                            {{ $member->total_submissions ?? $member->peer_count }} Submitted
+                                        </span>
+
+                                        <!-- Bottom Line: Evaluator Type Breakdown (Principal, Peer, Student, Self) -->
+                                        <div class="flex items-center justify-center gap-1 text-[10px] font-extrabold mt-0.5">
+                                            <span class="px-1.5 py-0.5 rounded bg-purple-50 text-purple-800 border border-purple-200/80" title="Principal Evaluations">Principal: {{ $member->principal_count ?? 0 }}</span>
+                                            <span class="px-1.5 py-0.5 rounded bg-blue-50 text-blue-800 border border-blue-200/80" title="Peer Evaluations">Peer: {{ $member->peer_count ?? 0 }}</span>
+                                            <span class="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200/80" title="Student Evaluations">Student: {{ $member->student_count ?? 0 }}</span>
+                                            <span class="px-1.5 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200/80" title="Self Evaluations">Self: {{ $member->self_count ?? 0 }}</span>
+                                        </div>
                                     </div>
-                                </div>
-                            </td>
-                            <td class="py-4 px-6">
-                                <p class="text-xs font-mono text-slate-700">{{ $member->email }}</p>
-                                <span class="text-[10px] font-bold text-slate-400 uppercase">ID: {{ $member->id_number }}</span>
-                            </td>
-                            <td class="py-4 px-6 text-center">
-                                @if($member->peer_count > 0)
-                                    <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black bg-blue-50 text-blue-800 border border-blue-200">
-                                        <i class="fa-solid fa-user-group text-[10px]"></i>
-                                        <span>{{ $member->peer_count }} {{ Str::plural('Submission', $member->peer_count) }}</span>
+                                </td>
+                                <td class="py-3 px-4 text-center whitespace-nowrap">
+                                    <span class="text-base font-black text-[#8b1818]">{{ number_format($member->weighted_score, 2) }}</span>
+                                    <span class="block text-[10px] font-bold text-slate-400">/ 100</span>
+                                    <div class="flex items-center justify-center gap-1 mt-1 text-[9px] font-black">
+                                        <span class="text-emerald-700" title="Student weighted contribution">S {{ $member->student_weighted !== null ? number_format($member->student_weighted, 1) : '--' }}</span>
+                                        <span class="text-purple-700" title="Principal weighted contribution">P {{ $member->principal_weighted !== null ? number_format($member->principal_weighted, 1) : '--' }}</span>
+                                        <span class="text-amber-700" title="Self weighted contribution">SE {{ $member->self_weighted !== null ? number_format($member->self_weighted, 1) : '--' }}</span>
+                                        <span class="text-blue-700" title="Peer weighted contribution">PE {{ $member->peer_weighted !== null ? number_format($member->peer_weighted, 1) : '--' }}</span>
+                                    </div>
+                                </td>
+                                <td class="py-2.5 px-4 text-center whitespace-nowrap">
+                                    @if($member->peer_avg !== null)
+                                        <div class="inline-flex items-baseline gap-1">
+                                            <span class="text-xs font-black text-slate-900">{{ number_format($member->peer_avg, 2) }}</span>
+                                            <span class="text-[10px] font-bold text-slate-400">/ 5.00</span>
+                                        </div>
+                                    @else
+                                        <span class="text-xs font-bold text-slate-400">--</span>
+                                    @endif
+                                </td>
+                                <td class="py-2.5 px-4 text-center whitespace-nowrap">
+                                    <span class="px-2.5 py-0.5 rounded-full text-[11px] font-black border {{ $member->badge_class }}">
+                                        {{ $member->descriptor }}
                                     </span>
-                                @else
-                                    <span class="text-xs font-bold text-slate-400">0 Submissions</span>
-                                @endif
-                            </td>
-                            <td class="py-4 px-6 text-center">
-                                @if($member->peer_avg !== null)
-                                    <div class="inline-flex items-baseline gap-1">
-                                        <span class="text-base font-black text-slate-900">{{ number_format($member->peer_avg, 2) }}</span>
-                                        <span class="text-[10px] font-bold text-slate-400">/ 5.00</span>
-                                    </div>
-                                @else
-                                    <span class="text-xs font-bold text-slate-400">--</span>
-                                @endif
-                            </td>
-                            <td class="py-4 px-6 text-center">
-                                <span class="px-3.5 py-1 rounded-full text-xs font-black border {{ $member->badge_class }}">
-                                    {{ $member->descriptor }}
-                                </span>
-                            </td>
-                            <td class="py-4 px-6 text-center">
-                                @if(isset($selectedCycle) && $selectedCycle)
-                                    <form method="POST" action="{{ route('admin.evaluations.toggle-publish') }}" class="inline-block">
-                                        @csrf
-                                        <input type="hidden" name="evaluation_cycle_id" value="{{ $selectedCycle->id }}">
-                                        <input type="hidden" name="teacher_id" value="{{ $member->id }}">
-                                        <input type="hidden" name="is_published" value="{{ $member->is_published ? 0 : 1 }}">
-                                        
-                                        @if($member->is_published)
-                                            <button type="submit" class="px-3 py-1 rounded-full text-xs font-black bg-emerald-100 text-emerald-900 border border-emerald-300 hover:bg-emerald-200 transition flex items-center gap-1.5 mx-auto" title="Click to Unpublish result from Teacher Dashboard">
-                                                <i class="fa-solid fa-circle-check text-emerald-600"></i>
-                                                <span>Published</span>
-                                            </button>
-                                        @else
-                                            <button type="submit" class="px-3 py-1 rounded-full text-xs font-black bg-slate-100 text-slate-600 border border-slate-300 hover:bg-slate-200 transition flex items-center gap-1.5 mx-auto" title="Click to Publish result to Teacher Dashboard">
-                                                <i class="fa-solid fa-circle-xmark text-slate-400"></i>
-                                                <span>Unpublished</span>
-                                            </button>
-                                        @endif
-                                    </form>
-                                @else
-                                    <span class="text-xs text-slate-400 italic">Select Cycle</span>
-                                @endif
-                            </td>
-                            <td class="py-4 px-6 text-right">
-                                <button @click="openBreakdown({{ json_encode($member) }})" 
-                                        class="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-black uppercase tracking-wider transition">
-                                    View Feedback
-                                </button>
-                            </td>
-                        </tr>
-                    @empty
-                        <tr>
-                            <td colspan="7" class="py-12 text-center text-xs font-bold text-slate-400">
-                                No faculty records found matching your search query.
-                            </td>
-                        </tr>
-                    @endforelse
-                </tbody>
-            </table>
+                                </td>
+                                <td class="py-2.5 px-4 text-center whitespace-nowrap">
+                                    @if(isset($selectedCycle) && $selectedCycle)
+                                        <form method="POST" action="{{ route('admin.evaluations.toggle-publish') }}" class="inline-block">
+                                            @csrf
+                                            <input type="hidden" name="evaluation_cycle_id" value="{{ $selectedCycle->id }}">
+                                            <input type="hidden" name="teacher_id" value="{{ $member->id }}">
+                                            <input type="hidden" name="is_published" value="{{ $member->is_published ? 0 : 1 }}">
+                                            
+                                            @if($member->is_published)
+                                                <button type="submit" class="px-2.5 py-0.5 rounded-full text-[11px] font-black bg-emerald-100 text-emerald-900 border border-emerald-300 hover:bg-emerald-200 transition flex items-center gap-1 mx-auto" title="Click to Unpublish result (Published on {{ $member->published_at ? $member->published_at->format('M d, Y') : 'Unknown' }})">
+                                                    <i class="fa-solid fa-circle-check text-emerald-600 text-[10px]"></i>
+                                                    <span>Published</span>
+                                                </button>
+                                            @else
+                                                <button type="submit" class="px-2.5 py-0.5 rounded-full text-[11px] font-black bg-slate-100 text-slate-600 border border-slate-300 hover:bg-slate-200 transition flex items-center gap-1 mx-auto" title="Click to Publish result to Teacher Dashboard">
+                                                    <i class="fa-solid fa-circle-xmark text-slate-400 text-[10px]"></i>
+                                                    <span>Unpublished</span>
+                                                </button>
+                                            @endif
+                                        </form>
+                                    @else
+                                        <span class="text-xs text-slate-400 italic">Select Cycle</span>
+                                    @endif
+                                </td>
+                                <td class="py-2.5 px-4 text-right whitespace-nowrap">
+                                    <button @click="openBreakdown({{ json_encode($member) }})" 
+                                            class="px-3 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-black uppercase tracking-wider transition">
+                                        View Feedback
+                                    </button>
+                                </td>
+                            </tr>
+                        @empty
+                            <tr>
+                                <td colspan="9" class="py-10 text-center text-xs font-bold text-slate-400">
+                                    No faculty records found matching your search query.
+                                </td>
+                            </tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
         </div>
     </main>
 
@@ -280,6 +350,13 @@
                     <span class="text-[10px] font-black uppercase text-slate-400">Rating Bracket</span>
                     <p class="text-sm font-black text-slate-800 mt-1" x-text="selectedFaculty ? selectedFaculty.descriptor : ''"></p>
                 </div>
+            </div>
+
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[10px] font-black uppercase tracking-wider">
+                <div class="p-2.5 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-200">Student<br><span class="text-sm" x-text="selectedFaculty && selectedFaculty.student_weighted !== null ? Number(selectedFaculty.student_weighted).toFixed(2) : '--'"></span></div>
+                <div class="p-2.5 rounded-xl bg-purple-50 text-purple-800 border border-purple-200">Principal<br><span class="text-sm" x-text="selectedFaculty && selectedFaculty.principal_weighted !== null ? Number(selectedFaculty.principal_weighted).toFixed(2) : '--'"></span></div>
+                <div class="p-2.5 rounded-xl bg-amber-50 text-amber-800 border border-amber-200">Self<br><span class="text-sm" x-text="selectedFaculty && selectedFaculty.self_weighted !== null ? Number(selectedFaculty.self_weighted).toFixed(2) : '--'"></span></div>
+                <div class="p-2.5 rounded-xl bg-blue-50 text-blue-800 border border-blue-200">Peer<br><span class="text-sm" x-text="selectedFaculty && selectedFaculty.peer_weighted !== null ? Number(selectedFaculty.peer_weighted).toFixed(2) : '--'"></span></div>
             </div>
 
             <!-- Written Comments -->
@@ -313,9 +390,9 @@
 
 <script>
     document.addEventListener('DOMContentLoaded', function() {
-        const labels = @json($barLabels ?? []);
-        const scores = @json($barScores ?? []);
-        const distValues = @json($distributionValues ?? [0,0,0,0,0]);
+        const labels = {!! json_encode($barLabels ?? []) !!};
+        const scores = {!! json_encode($barScores ?? []) !!};
+        const distValues = {!! json_encode($distributionValues ?? [0,0,0,0,0]) !!};
 
         const distCtx = document.getElementById('distributionChart');
         if (distCtx) {
@@ -355,7 +432,7 @@
                     responsive: true,
                     maintainAspectRatio: false,
                     scales: {
-                        y: { min: 0, max: 5, ticks: { stepSize: 1 } }
+                        y: { min: 0, max: 100, ticks: { stepSize: 20 } }
                     },
                     plugins: { legend: { display: false } }
                 }

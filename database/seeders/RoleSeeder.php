@@ -30,8 +30,8 @@ class RoleSeeder extends Seeder
             ],
             [
                 'id'          => 4,
-                'name'        => 'DIRECTOR',
-                'description' => 'CAMPUS / ACADEMIC DIRECTOR',
+                'name'        => 'MANAGEMENT',
+                'description' => 'INSTITUTIONAL MANAGEMENT & OPERATIONS',
             ],
         ];
 

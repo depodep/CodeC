@@ -183,38 +183,38 @@
     <div class="p-5 lg:p-6 bg-white rounded-2xl border border-slate-200 shadow-xs space-y-4">
         <h2 class="text-sm font-bold text-slate-800 uppercase tracking-wider">Faculty Evaluation Summary</h2>
         <div class="overflow-x-auto rounded-xl border border-slate-200">
-            <table class="w-full text-left border-collapse text-xs">
+            <table class="w-full text-left border-collapse text-xs min-w-[900px]">
                 <thead>
                     <tr class="bg-slate-50 text-slate-600 uppercase font-bold tracking-wider border-b border-slate-200">
-                        <th class="py-3 px-4">Faculty Name</th>
-                        <th class="py-3 px-4 text-center">Faculty ID</th>
-                        <th class="py-3 px-4">Department</th>
-                        <th class="py-3 px-4 text-center">Student Evals</th>
-                        <th class="py-3 px-4 text-center">Peer Evals</th>
-                        <th class="py-3 px-4 text-center">Self Evals</th>
-                        <th class="py-3 px-4 text-center">Overall</th>
-                        <th class="py-3 px-4 text-center">Status</th>
-                        <th class="py-3 px-4 text-center">Action</th>
+                        <th class="py-3 px-4 whitespace-nowrap">Faculty Name</th>
+                        <th class="py-3 px-4 text-center whitespace-nowrap">Faculty ID</th>
+                        <th class="py-3 px-4 whitespace-nowrap">Department</th>
+                        <th class="py-3 px-4 text-center whitespace-nowrap">Student Evals</th>
+                        <th class="py-3 px-4 text-center whitespace-nowrap">Peer Evals</th>
+                        <th class="py-3 px-4 text-center whitespace-nowrap">Self Evals</th>
+                        <th class="py-3 px-4 text-center whitespace-nowrap">Overall</th>
+                        <th class="py-3 px-4 text-center whitespace-nowrap">Status</th>
+                        <th class="py-3 px-4 text-center whitespace-nowrap">Action</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-100 font-semibold text-slate-800">
                     @forelse($facultySummary as $fac)
                     <tr class="hover:bg-slate-50/60 transition">
-                        <td class="py-3 px-4 font-extrabold text-slate-900">{{ $fac->name }}</td>
-                        <td class="py-3 px-4 text-center font-mono text-[11px] text-slate-500">{{ $fac->id_number }}</td>
-                        <td class="py-3 px-4 text-slate-600">{{ $fac->department }}</td>
-                        <td class="py-3 px-4 text-center font-mono">{{ $fac->student_progress }}</td>
-                        <td class="py-3 px-4 text-center font-mono">{{ $fac->peer_progress }}</td>
-                        <td class="py-3 px-4 text-center font-mono">{{ $fac->personal_progress }}</td>
-                        <td class="py-3 px-4 text-center font-black text-[#590d0d]">{{ $fac->overall_rate }}%</td>
-                        <td class="py-3 px-4 text-center">
+                        <td class="py-3 px-4 font-extrabold text-slate-900 whitespace-nowrap">{{ $fac->name }}</td>
+                        <td class="py-3 px-4 text-center font-mono text-[11px] text-slate-500 whitespace-nowrap">{{ $fac->id_number }}</td>
+                        <td class="py-3 px-4 text-slate-600 whitespace-nowrap">{{ $fac->department }}</td>
+                        <td class="py-3 px-4 text-center font-mono whitespace-nowrap">{{ $fac->student_progress }}</td>
+                        <td class="py-3 px-4 text-center font-mono whitespace-nowrap">{{ $fac->peer_progress }}</td>
+                        <td class="py-3 px-4 text-center font-mono whitespace-nowrap">{{ $fac->personal_progress }}</td>
+                        <td class="py-3 px-4 text-center font-black text-[#590d0d] whitespace-nowrap">{{ $fac->overall_rate }}%</td>
+                        <td class="py-3 px-4 text-center whitespace-nowrap">
                             @if($fac->status === 'Completed')
                                 <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">Completed</span>
                             @else
                                 <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">In Progress</span>
                             @endif
                         </td>
-                        <td class="py-3 px-4 text-center">
+                        <td class="py-3 px-4 text-center whitespace-nowrap">
                             <button onclick="openEvaluationModal('{{ $fac->name }}', '{{ $fac->department }}')" class="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-[#590d0d] hover:text-white text-slate-700 text-[11px] font-bold transition">View</button>
                         </td>
                     </tr>
@@ -232,28 +232,28 @@
     <div class="p-5 lg:p-6 bg-white rounded-2xl border border-slate-200 shadow-xs space-y-4">
         <h2 class="text-sm font-bold text-slate-800 uppercase tracking-wider">Evaluations Not Yet Completed</h2>
         <div class="overflow-x-auto rounded-xl border border-slate-200">
-            <table class="w-full text-left border-collapse text-xs">
+            <table class="w-full text-left border-collapse text-xs min-w-[900px]">
                 <thead>
                     <tr class="bg-slate-50 text-slate-600 uppercase font-bold tracking-wider border-b border-slate-200">
-                        <th class="py-3 px-4">Evaluator</th>
-                        <th class="py-3 px-4">Evaluator Type</th>
-                        <th class="py-3 px-4">Faculty Being Evaluated</th>
-                        <th class="py-3 px-4 text-center">Period</th>
-                        <th class="py-3 px-4 text-center">Status</th>
-                        <th class="py-3 px-4 text-center">Action</th>
+                        <th class="py-3 px-4 whitespace-nowrap">Evaluator</th>
+                        <th class="py-3 px-4 whitespace-nowrap">Evaluator Type</th>
+                        <th class="py-3 px-4 whitespace-nowrap">Faculty Being Evaluated</th>
+                        <th class="py-3 px-4 text-center whitespace-nowrap">Period</th>
+                        <th class="py-3 px-4 text-center whitespace-nowrap">Status</th>
+                        <th class="py-3 px-4 text-center whitespace-nowrap">Action</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-100 font-semibold text-slate-800">
                     @forelse($pendingEvaluations as $pend)
                     <tr class="hover:bg-slate-50/60 transition">
-                        <td class="py-3 px-4 font-bold text-slate-900">{{ $pend->evaluator }}</td>
-                        <td class="py-3 px-4 text-slate-600">{{ $pend->evaluator_type }}</td>
-                        <td class="py-3 px-4 text-slate-700 font-bold">{{ $pend->faculty }}</td>
-                        <td class="py-3 px-4 text-center text-slate-500 font-mono text-[11px]">{{ $pend->period }}</td>
-                        <td class="py-3 px-4 text-center">
+                        <td class="py-3 px-4 font-bold text-slate-900 whitespace-nowrap">{{ $pend->evaluator }}</td>
+                        <td class="py-3 px-4 text-slate-600 whitespace-nowrap">{{ $pend->evaluator_type }}</td>
+                        <td class="py-3 px-4 text-slate-700 font-bold whitespace-nowrap">{{ $pend->faculty }}</td>
+                        <td class="py-3 px-4 text-center text-slate-500 font-mono text-[11px] whitespace-nowrap">{{ $pend->period }}</td>
+                        <td class="py-3 px-4 text-center whitespace-nowrap">
                             <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">Pending</span>
                         </td>
-                        <td class="py-3 px-4 text-center">
+                        <td class="py-3 px-4 text-center whitespace-nowrap">
                             <button class="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-900 hover:text-white text-slate-700 text-[11px] font-bold transition">View</button>
                         </td>
                     </tr>

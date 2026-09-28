@@ -62,27 +62,44 @@
             </div>
         @endif
 
-        <!-- Active Evaluation Cycle Banner (NO SEMESTER) -->
-        <div class="bg-gradient-to-r from-[#590d0d] via-[#731414] to-[#8b1818] rounded-3xl p-6 sm:p-8 text-white shadow-xl shadow-red-950/15 relative overflow-hidden">
-            <div class="absolute -right-10 -bottom-10 w-48 h-48 bg-white/5 rounded-full blur-2xl pointer-events-none"></div>
+        <!-- Active Evaluation Cycle Banner -->
+        <div class="bg-gradient-to-r from-[#590d0d] via-[#731414] to-[#8b1818] rounded-3xl p-6 sm:p-9 text-white shadow-xl shadow-red-950/20 relative overflow-hidden">
+            <div class="absolute -right-10 -bottom-10 w-64 h-64 bg-white/5 rounded-full blur-3xl pointer-events-none"></div>
             
-            <div class="flex flex-col sm:flex-row sm:items-center justify-between pb-6 border-b border-white/10 gap-4">
-                <div>
-                    <span class="text-[10px] font-black uppercase tracking-widest text-amber-300">Active Evaluation Period</span>
-                    <h2 class="text-xl sm:text-2xl font-black tracking-tight mt-0.5">
-                        {{ $activeCycle->name ?? 'No Active Evaluation Cycle' }}
-                    </h2>
+            <div class="flex flex-col lg:flex-row lg:items-center justify-between pb-6 border-b border-white/15 gap-6">
+                <div class="space-y-1.5">
+                    <div class="flex items-center gap-2">
+                        <span class="w-2.5 h-2.5 rounded-full {{ (isset($activeCycle) && $activeCycle) ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400' }}"></span>
+                        <span class="text-xs sm:text-sm font-black uppercase tracking-widest text-amber-300">ACTIVE EVALUATION PERIOD</span>
+                    </div>
+                    
+                    @if(isset($activeCycle) && $activeCycle)
+                        <h2 class="text-2xl sm:text-3xl font-black tracking-tight text-white leading-tight">
+                            {{ $activeCycle->name }}
+                        </h2>
+                        <p class="text-xs font-medium text-slate-200">
+                            Evaluations are currently <span class="font-bold text-emerald-300">OPEN</span> for student, peer, and self responses.
+                        </p>
+                    @else
+                        <h2 class="text-2xl sm:text-3xl font-black tracking-tight text-white/90 leading-tight">
+                            No Active Evaluation Period
+                        </h2>
+                        <p class="text-xs font-medium text-red-200">
+                            There is currently no active evaluation window running. Click <span class="font-bold text-amber-300">Start New Evaluation</span> below to launch an evaluation period.
+                        </p>
+                    @endif
                 </div>
-                <div class="flex items-center gap-3">
-                    <button @click="periodModal = true" class="px-4 py-2.5 rounded-xl bg-white/15 hover:bg-white/25 text-white backdrop-blur-md border border-white/20 text-xs font-black transition flex items-center gap-2 shadow-sm">
-                        <i class="fa-solid fa-plus-circle text-amber-300"></i>
+
+                <div class="flex flex-wrap items-center gap-3 shrink-0">
+                    <button @click="periodModal = true" class="px-5 py-3 rounded-2xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs uppercase tracking-wider transition shadow-lg flex items-center gap-2">
+                        <i class="fa-solid fa-play text-slate-900 text-xs"></i>
                         <span>Start New Evaluation</span>
                     </button>
                     @if(isset($activeCycle) && $activeCycle)
                         <form method="POST" action="{{ route('admin.evaluations.end-cycle', ['id' => $activeCycle->id]) }}" onsubmit="return confirm('End evaluation cycle permanently? Submissions will be locked and saved to history.');">
                             @csrf
-                            <button type="submit" class="px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-black transition flex items-center gap-2 shadow-sm">
-                                <i class="fa-solid fa-circle-stop"></i>
+                            <button type="submit" class="px-5 py-3 rounded-2xl bg-rose-600 hover:bg-rose-700 text-white font-black text-xs uppercase tracking-wider transition shadow-lg flex items-center gap-2">
+                                <i class="fa-solid fa-circle-stop text-white text-xs"></i>
                                 <span>End Evaluation</span>
                             </button>
                         </form>
@@ -91,30 +108,36 @@
             </div>
 
             <div class="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div class="bg-black/20 backdrop-blur-sm rounded-2xl p-4 border border-white/10">
-                    <p class="text-[10px] font-black uppercase tracking-wider text-red-200/70">School Year</p>
-                    <h4 class="text-base font-extrabold text-white mt-1">SY {{ $activeCycle->school_year ?? '2026-2027' }}</h4>
+                <div class="bg-black/25 backdrop-blur-sm rounded-2xl p-4 border border-white/10">
+                    <p class="text-[11px] font-black uppercase tracking-wider text-red-200/80">School Year</p>
+                    <h4 class="text-base font-extrabold text-white mt-1">
+                        SY {{ $activeCycle->school_year ?? ($activeSchoolYear ?? '2026-2027') }}
+                    </h4>
                     <span class="text-[11px] font-semibold text-amber-300">Active Academic Year</span>
                 </div>
-                <div class="bg-black/20 backdrop-blur-sm rounded-2xl p-4 border border-white/10">
-                    <p class="text-[10px] font-black uppercase tracking-wider text-red-200/70">Evaluation Date Range</p>
+                
+                <div class="bg-black/25 backdrop-blur-sm rounded-2xl p-4 border border-white/10">
+                    <p class="text-[11px] font-black uppercase tracking-wider text-red-200/80">Evaluation Date Range</p>
                     <h4 class="text-base font-extrabold text-white mt-1">
                         @if(isset($activeCycle->start_date) && $activeCycle->start_date)
                             {{ \Carbon\Carbon::parse($activeCycle->start_date)->format('M d, Y') }} &ndash; {{ \Carbon\Carbon::parse($activeCycle->end_date)->format('M d, Y') }}
                         @else
-                            <span class="text-slate-300 font-normal">Date Range Not Set</span>
+                            <span class="text-slate-300/80 font-normal italic">Date Range Not Set</span>
                         @endif
                     </h4>
                     <span class="text-[11px] font-semibold text-red-200">Configured Window</span>
                 </div>
-                <div class="bg-black/20 backdrop-blur-sm rounded-2xl p-4 border border-white/10">
-                    <p class="text-[10px] font-black uppercase tracking-wider text-red-200/70">Status</p>
+
+                <div class="bg-black/25 backdrop-blur-sm rounded-2xl p-4 border border-white/10">
+                    <p class="text-[11px] font-black uppercase tracking-wider text-red-200/80">Evaluation Window Status</p>
                     <div class="mt-1 flex items-center gap-2">
-                        <span class="w-2.5 h-2.5 rounded-full {{ ($activeCycle->status ?? '') === 'active' ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400' }}"></span>
-                        <h4 class="text-base font-black uppercase text-white">{{ strtoupper($activeCycle->status ?? 'Inactive') }}</h4>
+                        <span class="w-2.5 h-2.5 rounded-full {{ (isset($activeCycle->status) && $activeCycle->status === 'active') ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400' }}"></span>
+                        <h4 class="text-base font-black uppercase text-white">
+                            {{ (isset($activeCycle->status) && $activeCycle->status === 'active') ? 'Active (Open)' : 'Inactive (Closed)' }}
+                        </h4>
                     </div>
                     <span class="text-[11px] font-semibold text-red-200">
-                        {{ ($activeCycle->status ?? '') === 'active' ? 'Live for respondents' : 'Start an evaluation to open' }}
+                        {{ (isset($activeCycle->status) && $activeCycle->status === 'active') ? 'Accepting evaluations' : 'Start an evaluation to open' }}
                     </span>
                 </div>
             </div>
@@ -134,8 +157,12 @@
                         <p class="text-xs text-slate-500 font-bold mt-0.5">Admin & Principal supervisory appraisal questionnaire</p>
                     </div>
                     <div class="pt-2 border-t border-slate-100 flex items-center justify-between text-xs font-extrabold text-slate-600">
-                        <span>Configured Items</span>
+                        <span>Items</span>
                         <span class="px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-800 border border-slate-200">{{ $counts['principal'] ?? 0 }}</span>
+                    </div>
+                    <div class="flex items-center justify-between text-[11px] font-bold text-slate-500">
+                        <span>Archived Versions</span>
+                        <span>{{ $versionCounts['principal'] ?? 0 }}</span>
                     </div>
                 </div>
                 <a href="{{ route('admin.evaluations.forms.edit', ['type' => 'principal']) }}" class="w-full py-2.5 px-4 rounded-xl bg-[#8b1818] hover:bg-[#731414] text-white font-black text-xs uppercase tracking-wider text-center transition shadow-xs flex items-center justify-center gap-2">
@@ -155,8 +182,12 @@
                         <p class="text-xs text-slate-500 font-bold mt-0.5">Faculty peer-to-peer collaboration rubric</p>
                     </div>
                     <div class="pt-2 border-t border-slate-100 flex items-center justify-between text-xs font-extrabold text-slate-600">
-                        <span>Configured Items</span>
+                        <span>Items</span>
                         <span class="px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-800 border border-slate-200">{{ $counts['peer'] ?? 0 }}</span>
+                    </div>
+                    <div class="flex items-center justify-between text-[11px] font-bold text-slate-500">
+                        <span>Archived Versions</span>
+                        <span>{{ $versionCounts['peer'] ?? 0 }}</span>
                     </div>
                 </div>
                 <a href="{{ route('admin.evaluations.forms.edit', ['type' => 'peer']) }}" class="w-full py-2.5 px-4 rounded-xl bg-[#8b1818] hover:bg-[#731414] text-white font-black text-xs uppercase tracking-wider text-center transition shadow-xs flex items-center justify-center gap-2">
@@ -176,8 +207,12 @@
                         <p class="text-xs text-slate-500 font-bold mt-0.5">Student rating of teaching performance & methodology</p>
                     </div>
                     <div class="pt-2 border-t border-slate-100 flex items-center justify-between text-xs font-extrabold text-slate-600">
-                        <span>Configured Items</span>
+                        <span>Items</span>
                         <span class="px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-800 border border-slate-200">{{ $counts['student'] ?? 0 }}</span>
+                    </div>
+                    <div class="flex items-center justify-between text-[11px] font-bold text-slate-500">
+                        <span>Archived Versions</span>
+                        <span>{{ $versionCounts['student'] ?? 0 }}</span>
                     </div>
                 </div>
                 <a href="{{ route('admin.evaluations.forms.edit', ['type' => 'student']) }}" class="w-full py-2.5 px-4 rounded-xl bg-[#8b1818] hover:bg-[#731414] text-white font-black text-xs uppercase tracking-wider text-center transition shadow-xs flex items-center justify-center gap-2">
@@ -197,8 +232,12 @@
                         <p class="text-xs text-slate-500 font-bold mt-0.5">Teacher self-reflection & professional growth questionnaire</p>
                     </div>
                     <div class="pt-2 border-t border-slate-100 flex items-center justify-between text-xs font-extrabold text-slate-600">
-                        <span>Configured Items</span>
+                        <span>Items</span>
                         <span class="px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-800 border border-slate-200">{{ $counts['self'] ?? 0 }}</span>
+                    </div>
+                    <div class="flex items-center justify-between text-[11px] font-bold text-slate-500">
+                        <span>Archived Versions</span>
+                        <span>{{ $versionCounts['self'] ?? 0 }}</span>
                     </div>
                 </div>
                 <a href="{{ route('admin.evaluations.forms.edit', ['type' => 'self']) }}" class="w-full py-2.5 px-4 rounded-xl bg-[#8b1818] hover:bg-[#731414] text-white font-black text-xs uppercase tracking-wider text-center transition shadow-xs flex items-center justify-center gap-2">
@@ -243,6 +282,27 @@
             </a>
         </div>
 
+        <!-- Form Header Preview -->
+        @if($activeForm)
+            <div class="bg-white border-2 border-slate-200 rounded-3xl overflow-hidden shadow-xs">
+                <div class="grid grid-cols-1 md:grid-cols-2 border-b-2 border-slate-200">
+                    <div class="p-5 border-b-2 md:border-b-0 md:border-r-2 border-slate-200">
+                        <p class="text-[10px] font-black uppercase tracking-wider text-slate-400">Evaluation Instrument</p>
+                        <h2 class="text-lg font-black text-slate-900 mt-1">{{ $activeForm->title }}</h2>
+                        <p class="text-sm font-black text-[#8b1818] mt-0.5">SY {{ $activeCycle->school_year ?? ($activeSchoolYear ?? '2026-2027') }}</p>
+                    </div>
+                    <div class="p-5">
+                        <p class="text-[10px] font-black uppercase tracking-wider text-slate-400">Faculty</p>
+                        <p class="text-sm font-black text-slate-800 mt-1">Preview / Faculty selection appears during evaluation</p>
+                    </div>
+                </div>
+                <div class="p-5 bg-slate-50/70">
+                    <p class="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1">Instructions for Evaluators</p>
+                    <p class="text-sm text-slate-700 font-semibold leading-relaxed">{{ $activeForm->instructions ?: 'Review each criterion carefully and select the rating that best describes the faculty member.' }}</p>
+                </div>
+            </div>
+        @endif
+
         <!-- Categorized Indicators Display List (Read-only overview) -->
         <div class="space-y-6">
             @forelse($groupedQuestions ?? [] as $category => $items)
@@ -274,8 +334,12 @@
                                             $options = [];
                                             if (!empty($q->options)) {
                                                 $options = is_array($q->options) ? $q->options : json_decode($q->options, true);
+                                                if (is_string($options)) {
+                                                    $decodedOptions = json_decode($options, true);
+                                                    $options = is_array($decodedOptions) ? $decodedOptions : $options;
+                                                }
                                                 if (!is_array($options) && is_string($q->options)) {
-                                                    $options = array_map('trim', explode(',', $q->options));
+                                                    $options = array_map('trim', explode(',', $options));
                                                 }
                                             }
                                         @endphp
@@ -361,29 +425,93 @@
                     <label class="block text-xs font-bold text-slate-700 mb-1.5">Evaluation Name</label>
                     <input type="text" name="name" placeholder="e.g. Faculty Evaluation – Midterm" required class="w-full px-4 py-2.5 text-xs font-bold border-2 border-slate-200 rounded-xl outline-none focus:border-[#8b1818]">
                 </div>
-                <div>
-                    <label class="block text-xs font-bold text-slate-700 mb-1.5">School Year Range</label>
-                    <input type="text" name="school_year" value="2026-2027" placeholder="e.g. 2026-2027" required class="w-full px-4 py-2.5 text-xs font-bold border-2 border-slate-200 rounded-xl outline-none focus:border-[#8b1818]">
+                
+                <!-- School Year (Current Active - Auto-Assigned) -->
+                <input type="hidden" name="school_year" value="{{ $activeCycle->school_year ?? ($activeSchoolYear ?? '2026-2027') }}">
+                <div class="p-3.5 bg-slate-50 border-2 border-slate-200 rounded-2xl flex items-center justify-between shadow-2xs">
+                    <div>
+                        <span class="text-[10px] font-black uppercase tracking-wider text-slate-400 block">Current Active School Year</span>
+                        <span class="text-xs font-extrabold text-slate-900">Academic Year SY {{ $activeCycle->school_year ?? ($activeSchoolYear ?? '2026-2027') }}</span>
+                    </div>
+                    <span class="px-2.5 py-1 rounded-full text-[11px] font-black bg-amber-100 text-amber-900 border border-amber-300">
+                        Auto-Assigned
+                    </span>
                 </div>
 
-                <div class="grid grid-cols-2 gap-3">
-                    <div>
-                        <label class="block text-xs font-bold text-slate-700 mb-1.5">Start Date</label>
-                        <input type="date" name="start_date" value="{{ date('Y-m-d') }}" required class="w-full px-3 py-2 text-xs font-bold border-2 border-slate-200 rounded-xl outline-none focus:border-[#8b1818]">
+                <!-- Evaluation Date Range -->
+                <div class="space-y-1.5">
+                    <label class="block text-xs font-bold text-slate-700">Evaluation Date Range</label>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-[10px] font-bold text-slate-400 mb-1">Start Date</label>
+                            <input type="date" name="start_date" value="{{ date('Y-m-d') }}" required class="w-full px-3 py-2 text-xs font-bold border-2 border-slate-200 rounded-xl outline-none focus:border-[#8b1818] bg-white">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-bold text-slate-400 mb-1">End Date</label>
+                            <input type="date" name="end_date" value="{{ date('Y-m-d', strtotime('+30 days')) }}" required class="w-full px-3 py-2 text-xs font-bold border-2 border-slate-200 rounded-xl outline-none focus:border-[#8b1818] bg-white">
+                        </div>
                     </div>
-                    <div>
-                        <label class="block text-xs font-bold text-slate-700 mb-1.5">End Date</label>
-                        <input type="date" name="end_date" value="{{ date('Y-m-d', strtotime('+30 days')) }}" required class="w-full px-3 py-2 text-xs font-bold border-2 border-slate-200 rounded-xl outline-none focus:border-[#8b1818]">
+                </div>
+
+                <!-- Evaluation Weighting -->
+                <div class="space-y-2 p-4 bg-slate-50 border-2 border-slate-200 rounded-2xl">
+                    <div class="flex items-center justify-between gap-3">
+                        <div>
+                            <label class="block text-xs font-black text-slate-700">Evaluation Weighting</label>
+                            <p class="text-[10px] text-slate-500 font-semibold">The four percentages must total exactly 100%.</p>
+                        </div>
+                        <span id="weightTotal" class="px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-black">100%</span>
                     </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        @foreach([
+                            'student_weight' => 'Student Eval',
+                            'principal_weight' => 'Principal',
+                            'self_weight' => 'Self',
+                            'peer_weight' => 'Peer',
+                        ] as $weightField => $weightLabel)
+                            <label class="block text-[10px] font-black uppercase tracking-wider text-slate-600">
+                                {{ $weightLabel }}
+                                <div class="relative mt-1">
+                                    <input type="number" name="{{ $weightField }}" value="{{ old($weightField, ['student_weight' => 40, 'principal_weight' => 40, 'self_weight' => 10, 'peer_weight' => 10][$weightField]) }}" min="0" max="100" step="0.01" required class="weight-input w-full px-3 py-2 pr-8 text-xs font-black border-2 border-slate-200 rounded-xl outline-none focus:border-[#8b1818] bg-white">
+                                    <span class="absolute right-3 top-2 text-xs font-black text-slate-400">%</span>
+                                </div>
+                            </label>
+                        @endforeach
+                    </div>
+                    <p id="weightError" class="hidden text-[10px] font-bold text-rose-600">Weights must total exactly 100%.</p>
                 </div>
 
                 <div class="flex justify-end gap-2.5 pt-4 border-t border-slate-100">
                     <button type="button" @click="periodModal = false" class="px-5 py-2.5 rounded-xl bg-slate-100 font-black text-xs text-slate-600 uppercase">Cancel</button>
-                    <button type="submit" class="px-5 py-2.5 rounded-xl bg-[#8b1818] font-black text-xs text-white uppercase shadow-md shadow-red-950/20">Start Evaluation</button>
+                    <button id="startEvaluationButton" type="submit" class="px-5 py-2.5 rounded-xl bg-[#8b1818] font-black text-xs text-white uppercase shadow-md shadow-red-950/20">Start Evaluation</button>
                 </div>
             </form>
         </div>
     </div>
 
 </div>
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const inputs = Array.from(document.querySelectorAll('.weight-input'));
+        const totalBadge = document.getElementById('weightTotal');
+        const error = document.getElementById('weightError');
+        const submit = document.getElementById('startEvaluationButton');
+
+        function updateWeightTotal() {
+            const total = inputs.reduce((sum, input) => sum + (parseFloat(input.value) || 0), 0);
+            const valid = Math.abs(total - 100) < 0.001;
+            totalBadge.textContent = `${total.toFixed(2).replace(/\.00$/, '')}%`;
+            totalBadge.className = valid
+                ? 'px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-black'
+                : 'px-2.5 py-1 rounded-full bg-rose-50 text-rose-700 border border-rose-200 text-[10px] font-black';
+            error.classList.toggle('hidden', valid);
+            submit.disabled = !valid;
+            submit.classList.toggle('opacity-50', !valid);
+            submit.classList.toggle('cursor-not-allowed', !valid);
+        }
+
+        inputs.forEach(input => input.addEventListener('input', updateWeightTotal));
+        updateWeightTotal();
+    });
+</script>
 @endsection

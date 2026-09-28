@@ -1,58 +1,163 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# SIA Track
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+SIA Track is a Laravel attendance and registration system with role-based
+accounts, academic sections, class schedules, and an optional ACR122U NFC
+reader bridge.
 
-## About Laravel
+## Requirements
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+- PHP 8.2 or later
+- Composer
+- Node.js and npm
+- MySQL (the current project `.env` uses MySQL) or SQLite
+- Python 3 on Windows if the NFC bridge is required
+- An installed ACR122U/PCSC smart-card reader for NFC attendance
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+## First-time setup
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+Run these commands from the project folder:
 
-## Learning Laravel
-
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
-
-In addition, [Laracasts](https://laracasts.com) contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
-
-You can also watch bite-sized lessons with real-world projects on [Laravel Learn](https://laravel.com/learn), where you will be guided through building a Laravel application from scratch while learning PHP fundamentals.
-
-## Agentic Development
-
-Laravel's predictable structure and conventions make it ideal for AI coding agents like Claude Code, Cursor, and GitHub Copilot. Install [Laravel Boost](https://laravel.com/docs/ai) to supercharge your AI workflow:
-
-```bash
-composer require laravel/boost --dev
-
-php artisan boost:install
+```bat
+composer install
+copy .env.example .env
+php artisan key:generate
 ```
 
-Boost provides your agent 15+ tools and skills that help agents build Laravel applications while following best practices.
+If a `.env` file already exists, do not overwrite it. Verify the database
+settings before continuing. For MySQL, set `DB_DATABASE`, `DB_USERNAME`, and
+`DB_PASSWORD` in `.env`, and make sure the database already exists. For
+SQLite, use `DB_CONNECTION=sqlite` and create the database file:
 
-## Contributing
+```bat
+type nul > database\database.sqlite
+```
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+Install and build the frontend assets:
 
-## Code of Conduct
+```bat
+npm install
+npm run build
+php artisan storage:link
+```
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+## Database setup order
 
-## Security Vulnerabilities
+Run the migration first, then run the seeders:
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+```bat
+php artisan migrate
+php artisan db:seed
+```
 
-## License
+`DatabaseSeeder` runs the seeders in this order:
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+1. `RoleSeeder` - creates ADMIN, FACULTY, STUDENT, and MANAGEMENT roles.
+2. `DefaultUsersSeeder` - creates the administrator and management accounts,
+   and creates the active `2025-2026`, `1st Semester` academic period when
+   needed.
+3. `DemoDataSeeder` - creates the demo faculty, sections, students, schedules,
+   and student-section assignments.
+
+For a disposable development database only, reset everything and seed it in
+one command:
+
+```bat
+php artisan migrate:fresh --seed
+```
+
+Do not use `migrate:fresh` on a database containing data you need to keep.
+Running `DemoDataSeeder` again removes existing faculty and student demo data
+before recreating it.
+
+## Seeded accounts
+
+All seeded accounts use the email address as the login username.
+
+| Role | Email | Password |
+| --- | --- | --- |
+| Administrator | `admin@siatrack.edu.ph` | `AdminPass2026!` |
+| Management | `management@siatrack.edu.ph` | `siamanagement@123` |
+| Faculty (Juan Dela Cruz) | `juan.delacruz@siatrack.edu.ph` | `siafaculty@123` |
+| Faculty (Maria Santos) | `maria.santos@siatrack.edu.ph` | `siafaculty@123` |
+| Faculty (Ramon Magsaysay) | `ramon.magsaysay@siatrack.edu.ph` | `siafaculty@123` |
+
+The 30 seeded student accounts all use the password `onesia@123`. Their
+emails follow `first-name.last-name@siatrack.edu.ph` (spaces in surnames are
+removed):
+
+```text
+
+sophia.bautista@siatrack.edu.ph
+gabriel.fernandez@siatrack.edu.ph
+angela.aquino@siatrack.edu.ph
+ethan.reyes@siatrack.edu.ph
+chloe.gonzales@siatrack.edu.ph
+joshua.torres@siatrack.edu.ph
+samantha.flores@siatrack.edu.ph
+liam.mercado@siatrack.edu.ph
+hannah.ocampo@siatrack.edu.ph
+nathan.delossantos@siatrack.edu.ph
+alexander.perez@siatrack.edu.ph
+beatrice.santiago@siatrack.edu.ph
+daniel.ramos@siatrack.edu.ph
+ella.mendoza@siatrack.edu.ph
+lucas.castillo@siatrack.edu.ph
+mia.villanueva@siatrack.edu.ph
+noah.gutierrez@siatrack.edu.ph
+olivia.rivera@siatrack.edu.ph
+patrick.delacruz@siatrack.edu.ph
+rachel.sanjose@siatrack.edu.ph
+adrian.cruz@siatrack.edu.ph
+alyssa.reyes@siatrack.edu.ph
+benjamin.santos@siatrack.edu.ph
+danica.bautista@siatrack.edu.ph
+elijah.garcia@siatrack.edu.ph
+fiona.marquez@siatrack.edu.ph
+jacob.evangelista@siatrack.edu.ph
+kaitlyn.beltran@siatrack.edu.ph
+marcus.ventura@siatrack.edu.ph
+nicole.pineda@siatrack.edu.ph
+```
+
+These are development/demo credentials. Change or remove them before using
+the application outside a local development environment.
+
+## Run the application
+
+To run only the Laravel application:
+
+```bat
+php artisan serve
+```
+
+Then open <http://127.0.0.1:8000>.
+
+For the NFC workflow, keep the Laravel server running and start the bridge in
+a second terminal:
+
+```bat
+python -u nfc_bridge.py
+```
+
+The bridge posts card taps to `http://127.0.0.1:8000/api/nfc/tap`. On Windows,
+the `START_SERVER.bat` helper starts both the Laravel server and the NFC
+bridge, then opens the application:
+
+```bat
+START_SERVER.bat
+```
+
+Run the first-time setup and database commands before using
+`START_SERVER.bat`. The reader must be connected and its Windows smart-card
+service/driver must be available for NFC taps to work.
+
+## Useful commands
+
+```bat
+php artisan route:list
+php artisan optimize:clear
+php artisan test
+npm run dev
+```
+
+Use `npm run dev` instead of `npm run build` during frontend development.

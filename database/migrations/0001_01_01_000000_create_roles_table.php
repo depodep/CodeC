@@ -44,8 +44,8 @@ return new class extends Migration
             ],
             [
                 'id'          => 4,
-                'name'        => 'Director',
-                'description' => 'Campus / Academic Director',
+                'name'        => 'Management',
+                'description' => 'Institutional Management & Operations',
                 'created_at'  => now(),
                 'updated_at'  => now(),
             ],

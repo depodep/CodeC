@@ -1,7 +1,20 @@
-<aside x-data="{ collapsed: false }" 
-       @toggle-sidebar.window="collapsed = !collapsed"
+<aside id="app-sidebar"
+       x-data="{ 
+           collapsed: localStorage.getItem('sidebar_collapsed') === 'true',
+           toggle() {
+               this.collapsed = !this.collapsed;
+               localStorage.setItem('sidebar_collapsed', this.collapsed ? 'true' : 'false');
+               if (this.collapsed) {
+                   document.documentElement.classList.add('sidebar-collapsed');
+               } else {
+                   document.documentElement.classList.remove('sidebar-collapsed');
+               }
+               window.dispatchEvent(new CustomEvent('sidebar-toggle', { detail: this.collapsed }));
+           }
+       }" 
+       @toggle-sidebar.window="toggle()"
        :class="collapsed ? 'w-20' : 'w-72'" 
-       class="bg-[#590d0d] border-r border-red-950/40 flex flex-col justify-between shrink-0 h-screen fixed top-0 left-0 z-30 shadow-2xl transition-all duration-300">
+       class="w-72 bg-[#590d0d] border-r border-red-950/40 flex flex-col justify-between shrink-0 h-screen fixed top-0 left-0 z-30 shadow-2xl transition-all duration-300">
     
     <!-- Top Accent Trim -->
     <div class="h-1.5 bg-gradient-to-r from-amber-400 via-amber-200 to-amber-400 w-full shrink-0"></div>
@@ -22,12 +35,12 @@
             </div>
 
             <!-- Minimized Logo View -->
-            <div class="w-10 h-10 rounded-xl bg-white p-1 border-2 border-amber-300 flex items-center justify-center shrink-0 mx-auto" x-show="collapsed" x-transition>
+            <div class="w-10 h-10 rounded-xl bg-white p-1 border-2 border-amber-300 flex items-center justify-center shrink-0 mx-auto" x-show="collapsed" x-cloak style="display: none;" x-transition>
                 <img src="{{ asset('images/sia-logo.png') }}" alt="SIA Logo" class="w-full h-full object-contain">
             </div>
 
             <!-- Hamburger Toggle Button -->
-            <button @click="collapsed = !collapsed; window.dispatchEvent(new CustomEvent('sidebar-toggle', { detail: collapsed }))" 
+            <button @click="toggle()" 
                     class="p-2 rounded-xl bg-red-950/60 hover:bg-red-950 text-amber-300 hover:text-white transition cursor-pointer shrink-0 border border-red-900/60 ml-2"
                     title="Toggle Sidebar">
                 <i class="fa-solid fa-bars text-sm"></i>
@@ -95,8 +108,8 @@
                                 <i class="fa-solid fa-chevron-down text-xs transition-transform duration-200" :class="open ? 'rotate-180' : ''" x-show="!collapsed"></i>
                             </button>
                             <div x-show="open && !collapsed" x-cloak class="pl-11 pr-2 space-y-1 py-1">
-                                <a href="{{ route('admin.attendance.live') }}" class="block py-1.5 px-3 rounded-lg text-xs font-bold text-red-200/80 hover:text-amber-300 hover:bg-red-900/40 transition">Live Tap Feed</a>
-                                <a href="{{ route('admin.attendance.override') }}" class="block py-1.5 px-3 rounded-lg text-xs font-bold text-red-200/80 hover:text-amber-300 hover:bg-red-900/40 transition">Manual Attendance Override</a>
+                                <a href="{{ route('admin.attendance.live') }}" class="block py-1.5 px-3 rounded-lg text-xs font-bold {{ request()->routeIs('admin.attendance.live*') ? 'bg-amber-400 text-amber-950 font-black shadow-xs' : 'text-red-200/80 hover:text-amber-300 hover:bg-red-900/40' }} transition">Live Tap Feed</a>
+                                <a href="{{ route('admin.attendance.override') }}" class="block py-1.5 px-3 rounded-lg text-xs font-bold {{ request()->routeIs('admin.attendance.override*') ? 'bg-amber-400 text-amber-950 font-black shadow-xs' : 'text-red-200/80 hover:text-amber-300 hover:bg-red-900/40' }} transition">Manual Attendance Override</a>
                             </div>
                         </div>
 
@@ -111,9 +124,9 @@
                                 <i class="fa-solid fa-chevron-down text-xs transition-transform duration-200" :class="open ? 'rotate-180' : ''" x-show="!collapsed"></i>
                             </button>
                             <div x-show="open && !collapsed" x-cloak class="pl-11 pr-2 space-y-1 py-1">
-                                <a href="{{ route('admin.evaluations.periods') }}" class="block py-1.5 px-3 rounded-lg text-xs font-bold text-red-200/80 hover:text-amber-300 hover:bg-red-900/40 transition">Periods & Questions Setup</a>
-                                <a href="{{ route('admin.evaluations.history') }}" class="block py-1.5 px-3 rounded-lg text-xs font-bold text-red-200/80 hover:text-amber-300 hover:bg-red-900/40 transition">Evaluation History</a>
-                                <a href="{{ route('admin.evaluations.results') }}" class="block py-1.5 px-3 rounded-lg text-xs font-bold text-red-200/80 hover:text-amber-300 hover:bg-red-900/40 transition">Results & Ratings Overview</a>
+                                <a href="{{ route('admin.evaluations.periods') }}" class="block py-1.5 px-3 rounded-lg text-xs font-bold {{ request()->routeIs('admin.evaluations.periods*', 'admin.evaluations.forms.edit*') ? 'bg-amber-400 text-amber-950 font-black shadow-xs' : 'text-red-200/80 hover:text-amber-300 hover:bg-red-900/40' }} transition">Periods & Questions Setup</a>
+                                <a href="{{ route('admin.evaluations.history') }}" class="block py-1.5 px-3 rounded-lg text-xs font-bold {{ request()->routeIs('admin.evaluations.history*') ? 'bg-amber-400 text-amber-950 font-black shadow-xs' : 'text-red-200/80 hover:text-amber-300 hover:bg-red-900/40' }} transition">Evaluation History</a>
+                                <a href="{{ route('admin.evaluations.results') }}" class="block py-1.5 px-3 rounded-lg text-xs font-bold {{ request()->routeIs('admin.evaluations.results*') ? 'bg-amber-400 text-amber-950 font-black shadow-xs' : 'text-red-200/80 hover:text-amber-300 hover:bg-red-900/40' }} transition">Results & Ratings Overview</a>
                             </div>
                         </div>
 
@@ -129,10 +142,10 @@
                                 <i class="fa-solid fa-chevron-down text-xs transition-transform duration-200" :class="open ? 'rotate-180' : ''" x-show="!collapsed"></i>
                             </button>
                             <div x-show="open && !collapsed" x-cloak class="pl-11 pr-2 space-y-1 py-1">
-                                <a href="{{ route('admin.reports.attendance') }}" class="block py-1.5 px-3 rounded-lg text-xs font-bold text-red-200/80 hover:text-amber-300 hover:bg-red-900/40 transition">Attendance Logs</a>
-                                <a href="{{ route('admin.reports.sf2') }}" class="block py-1.5 px-3 rounded-lg text-xs font-bold text-red-200/80 hover:text-amber-300 hover:bg-red-900/40 transition">SF2 (DepEd Compliant)</a>
-                                <a href="{{ route('admin.reports.evaluation') }}" class="block py-1.5 px-3 rounded-lg text-xs font-bold text-red-200/80 hover:text-amber-300 hover:bg-red-900/40 transition">Faculty Evaluation Summary</a>
-                                <a href="{{ route('admin.reports.users') }}" class="block py-1.5 px-3 rounded-lg text-xs font-bold text-red-200/80 hover:text-amber-300 hover:bg-red-900/40 transition">User Master List</a>
+                                <a href="{{ route('admin.reports.attendance') }}" class="block py-1.5 px-3 rounded-lg text-xs font-bold {{ request()->routeIs('admin.reports.attendance*') ? 'bg-amber-400 text-amber-950 font-black shadow-xs' : 'text-red-200/80 hover:text-amber-300 hover:bg-red-900/40' }} transition">Attendance Logs</a>
+                                <a href="{{ route('admin.reports.sf2') }}" class="block py-1.5 px-3 rounded-lg text-xs font-bold {{ request()->routeIs('admin.reports.sf2*') ? 'bg-amber-400 text-amber-950 font-black shadow-xs' : 'text-red-200/80 hover:text-amber-300 hover:bg-red-900/40' }} transition">SF2 (DepEd Compliant)</a>
+                                <a href="{{ route('admin.reports.evaluation') }}" class="block py-1.5 px-3 rounded-lg text-xs font-bold {{ request()->routeIs('admin.reports.evaluation*') ? 'bg-amber-400 text-amber-950 font-black shadow-xs' : 'text-red-200/80 hover:text-amber-300 hover:bg-red-900/40' }} transition">Faculty Evaluation Summary</a>
+                                <a href="{{ route('admin.reports.users') }}" class="block py-1.5 px-3 rounded-lg text-xs font-bold {{ request()->routeIs('admin.reports.users*') ? 'bg-amber-400 text-amber-950 font-black shadow-xs' : 'text-red-200/80 hover:text-amber-300 hover:bg-red-900/40' }} transition">User Master List</a>
                             </div>
                         </div>
 
@@ -185,12 +198,12 @@
                             <span class="text-[13px]" x-show="!collapsed">Dashboard</span>
                         </a>
 
-                        <!-- School Year and Sections -->
-                        <a href="{{ route('teacher.school-years') }}" 
-                           class="group flex items-center gap-3.5 px-3.5 py-2.5 rounded-xl transition duration-150 {{ request()->routeIs('teacher.school-years*') ? 'bg-amber-400 text-amber-950 shadow-md' : 'text-white hover:bg-red-900/50 hover:text-amber-200' }}"
-                           title="School Year and Sections">
-                            <i class="fa-solid fa-layer-group text-base {{ request()->routeIs('teacher.school-years*') ? 'text-amber-950' : 'text-amber-300 group-hover:text-white' }}"></i>
-                            <span class="text-[13px]" x-show="!collapsed">School Year & Sections</span>
+                        <!-- Classes (Combined Schedule & Sections) -->
+                        <a href="{{ route('teacher.classes') }}" 
+                           class="group flex items-center gap-3.5 px-3.5 py-2.5 rounded-xl transition duration-150 {{ request()->routeIs('teacher.classes*', 'teacher.schedules*', 'teacher.school-years*', 'teacher.schedule.students*') ? 'bg-amber-400 text-amber-950 shadow-md' : 'text-white hover:bg-red-900/50 hover:text-amber-200' }}"
+                           title="Classes">
+                            <i class="fa-solid fa-chalkboard-user text-base {{ request()->routeIs('teacher.classes*', 'teacher.schedules*', 'teacher.school-years*', 'teacher.schedule.students*') ? 'text-amber-950' : 'text-amber-300 group-hover:text-white' }}"></i>
+                            <span class="text-[13px]" x-show="!collapsed">Classes</span>
                         </a>
 
                         <!-- Student -->
@@ -215,14 +228,6 @@
                            title="Attendance">
                             <i class="fa-solid fa-clipboard-user text-base {{ request()->routeIs('teacher.attendance*') ? 'text-amber-950' : 'text-amber-300 group-hover:text-white' }}"></i>
                             <span class="text-[13px]" x-show="!collapsed">Attendance</span>
-                        </a>                                        
-                        
-                        <!-- Class Schedule -->
-                        <a href="{{ route('teacher.schedules') }}" 
-                           class="group flex items-center gap-3.5 px-3.5 py-2.5 rounded-xl transition duration-150 {{ request()->routeIs('teacher.schedules*') ? 'bg-amber-400 text-amber-950 shadow-md' : 'text-white hover:bg-red-900/50 hover:text-amber-200' }}"
-                           title="Class Schedule">
-                            <i class="fa-solid fa-calendar-days text-base {{ request()->routeIs('teacher.schedules*') ? 'text-amber-950' : 'text-amber-300 group-hover:text-white' }}"></i>
-                            <span class="text-[13px]" x-show="!collapsed">Class Schedule</span>
                         </a>
 
                         <!-- Report -->

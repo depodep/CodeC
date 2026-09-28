@@ -11,6 +11,10 @@ class DatabaseSeeder extends Seeder
         $this->call([
             RoleSeeder::class,
             DefaultUsersSeeder::class,
+            DemoDataSeeder::class,
+            PrincipalEvaluationSeeder::class,
+            PeerEvaluationSeeder::class,
+            StudentAndSelfEvaluationSeeder::class,
         ]);
     }
 }

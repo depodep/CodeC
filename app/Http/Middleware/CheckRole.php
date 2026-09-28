@@ -40,11 +40,12 @@ class CheckRole
 
         // 3. Eksaktong mapping para sa apat na roles
         $targetMap = [
-            'admin'    => [1, 'admin'],
-            'director' => [4, 'director'],
-            'faculty'  => [2, 'faculty', 'teacher'],
-            'teacher'  => [2, 'faculty', 'teacher'],
-            'student'  => [3, 'student'],
+            'admin'      => [1, 'admin'],
+            'director'   => [4, 'director', 'management'],
+            'management' => [4, 'management', 'director'],
+            'faculty'    => [2, 'faculty', 'teacher'],
+            'teacher'    => [2, 'faculty', 'teacher'],
+            'student'    => [3, 'student'],
         ];
 
         $allowedItems = $targetMap[$target] ?? [$target];
@@ -62,7 +63,7 @@ class CheckRole
             1       => redirect()->route('admin.dashboard'),
             2       => redirect()->route('teacher.schedules'),
             3       => redirect()->route('student.dashboard'),
-            4       => redirect()->route('director.dashboard'), 
+            4       => redirect()->route('management.dashboard'), 
             default => redirect()->route('login'),
         };
     }

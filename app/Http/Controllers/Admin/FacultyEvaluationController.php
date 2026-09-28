@@ -52,8 +52,12 @@ class FacultyEvaluationController extends Controller
             : collect(['Information Technology', 'Education', 'General Education']);
 
         // Faculty list (role_id 2 or role teacher/faculty)
-        $facultyQuery = DB::table('users')->where(function($q) {
-            $q->where('role_id', 2)->orWhere('role', 'teacher')->orWhere('role', 'faculty');
+        $hasRoleCol = Schema::hasTable('users') && Schema::hasColumn('users', 'role');
+        $facultyQuery = DB::table('users')->where(function($q) use ($hasRoleCol) {
+            $q->where('role_id', 2);
+            if ($hasRoleCol) {
+                $q->orWhere('role', 'teacher')->orWhere('role', 'faculty');
+            }
         });
 
         if ($selectedDepartment) {

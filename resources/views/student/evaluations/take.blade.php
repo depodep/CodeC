@@ -29,8 +29,12 @@
                                 $options = [];
                                 if (!empty($q->options)) {
                                     $options = is_array($q->options) ? $q->options : json_decode($q->options, true);
+                                    if (is_string($options)) {
+                                        $decodedOptions = json_decode($options, true);
+                                        $options = is_array($decodedOptions) ? $decodedOptions : $options;
+                                    }
                                     if (!is_array($options) && is_string($q->options)) {
-                                        $options = array_map('trim', explode(',', $q->options));
+                                        $options = array_map('trim', explode(',', $options));
                                     }
                                 }
                             @endphp

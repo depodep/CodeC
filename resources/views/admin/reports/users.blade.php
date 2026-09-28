@@ -1,4 +1,4 @@
-@extends('layouts.admin') <!-- Palitan ito ng tamang layout extension niyo kung iba ang pangalan -->
+@extends('layouts.app')
 
 @section('content')
 <div class="p-6">
@@ -6,7 +6,7 @@
     <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
         <div>
             <h1 class="text-xl font-black text-slate-900">User Management</h1>
-            <p class="text-xs text-slate-500 font-semibold mt-0.5">Manage institutional student, faculty, director, and administrator directory records</p>
+            <p class="text-xs text-slate-500 font-semibold mt-0.5">Manage institutional student, faculty, management, and administrator directory records</p>
         </div>
         <div class="flex items-center gap-3">
             <a href="#" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition flex items-center gap-2 shadow-xs">
@@ -69,7 +69,7 @@
                                         1 => ['bg' => 'bg-amber-100 text-amber-900 border-amber-300', 'label' => 'Administrator'],
                                         2 => ['bg' => 'bg-blue-100 text-blue-900 border-blue-300', 'label' => 'Faculty / Teacher'],
                                         3 => ['bg' => 'bg-emerald-100 text-emerald-900 border-emerald-300', 'label' => 'Student'],
-                                        4 => ['bg' => 'bg-purple-100 text-purple-900 border-purple-300', 'label' => 'Director / Viewer'],
+                                        4 => ['bg' => 'bg-purple-100 text-purple-900 border-purple-300', 'label' => 'Management'],
                                         default => ['bg' => 'bg-slate-100 text-slate-800 border-slate-300', 'label' => 'User']
                                     };
                                 @endphp

@@ -29,7 +29,7 @@
         </div>
     </header>
 
-    <main class="max-w-7xl mx-auto pt-6 px-4 sm:px-6 lg:px-8 space-y-6">
+    <main class="max-w-[1700px] mx-auto pt-6 px-4 sm:px-6 lg:px-8 space-y-6">
         
         @if(session('success'))
             <div class="p-4 bg-emerald-50 border-2 border-emerald-300 text-emerald-900 text-xs font-bold rounded-2xl flex items-center justify-between shadow-xs">
@@ -102,64 +102,64 @@
             </form>
         </div>
 
-        <!-- History Table -->
+        <!-- History Table with Non-shrinking Columns -->
         <div class="bg-white border-2 border-slate-200/90 rounded-3xl overflow-hidden shadow-xs">
             <div class="overflow-x-auto">
-                <table class="w-full text-left border-collapse">
+                <table class="w-full text-left border-collapse min-w-[1100px]">
                     <thead>
                         <tr class="bg-slate-50 border-b-2 border-slate-200 text-[11px] font-black uppercase tracking-wider text-slate-600">
-                            <th class="py-4 px-6 text-center w-12">#</th>
-                            <th class="py-4 px-6">Evaluation Name</th>
-                            <th class="py-4 px-6">Evaluation Window</th>
-                            <th class="py-4 px-6">Respondent Submissions</th>
-                            <th class="py-4 px-6 text-center">Total Responses</th>
-                            <th class="py-4 px-6 text-center">Status</th>
-                            <th class="py-4 px-6 text-right">Actions</th>
+                            <th class="py-4 px-6 text-center w-12 whitespace-nowrap">#</th>
+                            <th class="py-4 px-6 whitespace-nowrap">Evaluation Name</th>
+                            <th class="py-4 px-6 whitespace-nowrap">Evaluation Window</th>
+                            <th class="py-4 px-6 whitespace-nowrap">Respondent Submissions</th>
+                            <th class="py-4 px-6 text-center whitespace-nowrap">Total Responses</th>
+                            <th class="py-4 px-6 text-center whitespace-nowrap">Status</th>
+                            <th class="py-4 px-6 text-right whitespace-nowrap">Actions</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-slate-100 text-xs font-bold text-slate-700">
                         @forelse($cycles ?? [] as $index => $c)
                             <tr class="hover:bg-slate-50/70 transition">
-                                <td class="py-4 px-6 text-center text-slate-400 font-mono">{{ $index + 1 }}</td>
-                                <td class="py-4 px-6">
+                                <td class="py-4 px-6 text-center text-slate-400 font-mono whitespace-nowrap">{{ $index + 1 }}</td>
+                                <td class="py-4 px-6 whitespace-nowrap">
                                     <div class="space-y-1">
-                                        <div class="flex items-center gap-2">
+                                        <div class="flex items-center gap-2 whitespace-nowrap">
                                             <span class="text-sm font-black text-slate-900">{{ $c->name }}</span>
-                                            <span class="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-amber-100 text-amber-900 border border-amber-300">
+                                            <span class="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-amber-100 text-amber-900 border border-amber-300 shrink-0 whitespace-nowrap">
                                                 SY {{ $c->school_year }}
                                             </span>
                                         </div>
                                         <span class="text-[10px] text-slate-400 font-semibold block">Created {{ \Carbon\Carbon::parse($c->created_at)->format('M d, Y') }}</span>
                                     </div>
                                 </td>
-                                <td class="py-4 px-6">
-                                    <div class="flex items-center gap-1.5 text-slate-800">
-                                        <i class="fa-regular fa-calendar-days text-slate-400 text-xs"></i>
-                                        <span>{{ \Carbon\Carbon::parse($c->start_date)->format('M d, Y') }} &ndash; {{ \Carbon\Carbon::parse($c->end_date)->format('M d, Y') }}</span>
+                                <td class="py-4 px-6 whitespace-nowrap">
+                                    <div class="flex items-center gap-1.5 text-slate-800 whitespace-nowrap">
+                                        <i class="fa-regular fa-calendar-days text-slate-400 text-xs shrink-0"></i>
+                                        <span class="whitespace-nowrap">{{ \Carbon\Carbon::parse($c->start_date)->format('M d, Y') }} &ndash; {{ \Carbon\Carbon::parse($c->end_date)->format('M d, Y') }}</span>
                                     </div>
                                 </td>
-                                <td class="py-4 px-6">
-                                    <div class="flex flex-wrap items-center gap-1.5">
-                                        <span class="px-2 py-0.5 rounded-lg text-[10px] font-extrabold bg-emerald-50 text-emerald-800 border border-emerald-200" title="Student Submissions">
+                                <td class="py-4 px-6 whitespace-nowrap">
+                                    <div class="flex items-center gap-1.5 whitespace-nowrap">
+                                        <span class="px-2 py-0.5 rounded-lg text-[10px] font-extrabold bg-emerald-50 text-emerald-800 border border-emerald-200 shrink-0 whitespace-nowrap" title="Student Submissions">
                                             Student: {{ $c->student_count ?? 0 }}
                                         </span>
-                                        <span class="px-2 py-0.5 rounded-lg text-[10px] font-extrabold bg-blue-50 text-blue-800 border border-blue-200" title="Peer Submissions">
+                                        <span class="px-2 py-0.5 rounded-lg text-[10px] font-extrabold bg-blue-50 text-blue-800 border border-blue-200 shrink-0 whitespace-nowrap" title="Peer Submissions">
                                             Peer: {{ $c->peer_count ?? 0 }}
                                         </span>
-                                        <span class="px-2 py-0.5 rounded-lg text-[10px] font-extrabold bg-amber-50 text-amber-800 border border-amber-200" title="Self Submissions">
+                                        <span class="px-2 py-0.5 rounded-lg text-[10px] font-extrabold bg-amber-50 text-amber-800 border border-amber-200 shrink-0 whitespace-nowrap" title="Self Submissions">
                                             Self: {{ $c->self_count ?? 0 }}
                                         </span>
-                                        <span class="px-2 py-0.5 rounded-lg text-[10px] font-extrabold bg-purple-50 text-purple-800 border border-purple-200" title="Principal Submissions">
+                                        <span class="px-2 py-0.5 rounded-lg text-[10px] font-extrabold bg-purple-50 text-purple-800 border border-purple-200 shrink-0 whitespace-nowrap" title="Principal Submissions">
                                             Principal: {{ $c->principal_count ?? 0 }}
                                         </span>
                                     </div>
                                 </td>
-                                <td class="py-4 px-6 text-center">
+                                <td class="py-4 px-6 text-center whitespace-nowrap">
                                     <span class="px-3 py-1 rounded-full text-xs font-black bg-slate-900 text-white shadow-2xs">
                                         {{ $c->response_count ?? 0 }} Total
                                     </span>
                                 </td>
-                                <td class="py-4 px-6 text-center">
+                                <td class="py-4 px-6 text-center whitespace-nowrap">
                                     @if($c->status === 'active')
                                         <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase bg-emerald-100 text-emerald-900 border border-emerald-300">
                                             <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
@@ -172,7 +172,7 @@
                                         </span>
                                     @endif
                                 </td>
-                                <td class="py-4 px-6 text-right space-x-2">
+                                <td class="py-4 px-6 text-right whitespace-nowrap space-x-2">
                                     <a href="{{ route('admin.evaluations.results', ['cycle_id' => $c->id]) }}" class="px-3.5 py-2 rounded-xl bg-[#8b1818] hover:bg-[#731414] text-white font-bold text-xs inline-flex items-center gap-1.5 transition shadow-xs">
                                         <i class="fa-solid fa-chart-pie text-amber-300 text-[11px]"></i>
                                         <span>View Analytics</span>

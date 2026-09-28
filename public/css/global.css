@@ -48,3 +48,16 @@ body {
     background: #dc2626;
     border-radius: 3px;
 }
+
+/* Alpine Cloak */
+[x-cloak] {
+    display: none !important;
+}
+
+/* Anti-flicker zero-layout-shift rules for sidebar */
+html.sidebar-collapsed aside#app-sidebar {
+    width: 5rem !important;
+}
+html.sidebar-collapsed main#app-main {
+    padding-left: 5rem !important;
+}

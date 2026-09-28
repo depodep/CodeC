@@ -10,7 +10,7 @@ use App\Http\Controllers\StudentDashboardController;
 use App\Http\Controllers\NfcAttendanceController;
 use App\Http\Controllers\DashboardController;
 
-// Admin & Director Controllers
+// Admin & Management Controllers
 use App\Http\Controllers\Admin\AdminDashboardController;
 use App\Http\Controllers\Admin\AdminUserController;
 use App\Http\Controllers\Admin\AdminSchoolYearController;
@@ -49,6 +49,7 @@ Route::middleware('guest')->group(function () {
 */
 Route::match(['get', 'post'], '/api/nfc/store-tap', [NfcAttendanceController::class, 'storeTap'])->name('api.nfc.store-tap');
 Route::match(['get', 'post'], '/api/nfc/tap', [AdminNfcController::class, 'handleTap']);
+Route::match(['get', 'post'], '/api/nfc/heartbeat', [AdminNfcController::class, 'heartbeat']);
 Route::get('/api/nfc/latest', [AdminNfcController::class, 'getLatestTap']);
 
 /*
@@ -66,8 +67,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
             'admin'    => redirect()->route('admin.dashboard'),
             'teacher'  => redirect()->route('teacher.schedules'),
             'student'  => redirect()->route('student.dashboard'),
-            'director' => redirect()->route('director.dashboard'),
-            default    => redirect('/'),
+            'director'   => redirect()->route('management.dashboard'),
+            'management' => redirect()->route('management.dashboard'),
+            default      => redirect('/'),
         };
     })->name('dashboard');
 
@@ -91,6 +93,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         
         Route::post('/profile/update', [AdminUserController::class, 'updateProfile'])->name('profile.update');
         Route::post('/users/{id}/reset-password', [AdminUserController::class, 'resetPassword'])->name('users.reset-password');
+        Route::post('/users/{id}/toggle-status', [AdminUserController::class, 'toggleStatus'])->name('users.toggle-status');
         Route::get('/users/export', [AdminUserController::class, 'export'])->name('users.export');      
         Route::get('/analytics/{type}', [AdminDashboardController::class, 'showAnalyticsReport'])->name('analytics.report');
         Route::resource('users', AdminUserController::class);
@@ -101,10 +104,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('/evaluations/periods/save', [AdminEvaluationController::class, 'savePeriod'])->name('evaluations.periods.save');
         Route::get('/evaluations/forms/{type}/edit', [AdminEvaluationController::class, 'editForm'])->name('evaluations.forms.edit');
         Route::post('/evaluations/forms/{type}/save', [AdminEvaluationController::class, 'saveForm'])->name('evaluations.forms.save');
+        Route::post('/evaluations/forms/{type}/versions/{version}/restore', [AdminEvaluationController::class, 'restoreFormVersion'])->name('evaluations.forms.versions.restore');
         Route::get('/evaluations/history', [AdminEvaluationController::class, 'history'])->name('evaluations.history');
         Route::post('/evaluations/start-cycle', [AdminEvaluationController::class, 'startCycle'])->name('evaluations.start-cycle');
         Route::post('/evaluations/end-cycle/{id}', [AdminEvaluationController::class, 'endCycle'])->name('evaluations.end-cycle');
         Route::post('/evaluations/toggle-publish', [AdminEvaluationController::class, 'toggleTeacherPublish'])->name('evaluations.toggle-publish');
+        Route::post('/evaluations/toggle-all-publish', [AdminEvaluationController::class, 'toggleAllTeacherPublish'])->name('evaluations.toggle-all-publish');
         Route::get('/evaluations/results', [AdminEvaluationController::class, 'results'])->name('evaluations.results');
         Route::post('/evaluations/toggle-status', [AdminEvaluationController::class, 'toggleStatus'])->name('evaluations.toggle');
 
@@ -118,8 +123,15 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
         Route::prefix('nfc')->name('nfc.')->group(function () {
             Route::get('/binding', [AdminNfcController::class, 'bindingIndex'])->name('binding');
+            Route::get('/bridge/download', [AdminNfcController::class, 'downloadBridge'])->name('bridge.download');
+            Route::get('/bridge/package', [AdminNfcController::class, 'downloadBridgePackage'])->name('bridge.package');
+            Route::get('/bridge/runner', [AdminNfcController::class, 'downloadBridgeRunner'])->name('bridge.runner');
             Route::post('/binding', [AdminNfcController::class, 'bindingStore'])->name('binding.store');
             Route::delete('/binding/{id}', [AdminNfcController::class, 'bindingDestroy'])->name('destroy');
+            // AJAX/JSON endpoints for the redesigned modal workflow
+            Route::post('/binding/ajax', [AdminNfcController::class, 'bindAjax'])->name('binding.ajax');
+            Route::delete('/binding/{id}/ajax', [AdminNfcController::class, 'destroyAjax'])->name('destroy.ajax');
+            Route::post('/clear-tap', [AdminNfcController::class, 'clearTap'])->name('clear-tap');
         });
 
         Route::get('/school-year', [AdminSchoolYearController::class, 'index'])->name('school-year');
@@ -168,10 +180,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     /*
     |--------------------------------------------------------------------------
-    | Director Routes
+    | Management Routes
     |--------------------------------------------------------------------------
     */
-    Route::middleware(['role:director'])->prefix('director')->name('director.')->group(function () {
+    Route::middleware(['role:management'])->prefix('management')->name('management.')->group(function () {
         Route::get('/dashboard', [AdminDashboardController::class, 'index'])->name('dashboard');
         Route::get('/reports', [AdminReportController::class, 'index'])->name('reports');
     });
@@ -184,9 +196,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::middleware(['role:teacher'])->prefix('teacher')->name('teacher.')->group(function () {
         
         Route::get('/dashboard', [TeacherDashboardController::class, 'index'])->name('dashboard');
-        Route::get('/school-years', [TeacherDashboardController::class, 'schoolYears'])->name('school-years');
+        Route::get('/classes', [TeacherDashboardController::class, 'classes'])->name('classes');
+        Route::get('/school-years', [TeacherDashboardController::class, 'classes'])->name('school-years');
+        Route::get('/schedule', [TeacherDashboardController::class, 'classes'])->name('schedules');
         Route::get('/students', [TeacherDashboardController::class, 'students'])->name('students');
         Route::post('/students', [TeacherDashboardController::class, 'storeStudent'])->name('students.store');
+        Route::put('/students/{id}', [TeacherDashboardController::class, 'updateStudent'])->name('students.update');
         
         Route::get('/messages', [TeacherDashboardController::class, 'messages'])->name('messages');
         Route::get('/messages/ping', [TeacherDashboardController::class, 'pingGateway'])->name('messages.ping');
@@ -194,8 +209,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('/messages/clear-logs', [TeacherDashboardController::class, 'clearDailyLogs'])->name('messages.clear-logs');
         
         Route::get('/reports', [TeacherDashboardController::class, 'reports'])->name('reports');
-
-        Route::get('/schedule', [TeacherDashboardController::class, 'schedule'])->name('schedules');
         Route::post('/schedule/update', [TeacherDashboardController::class, 'updateSchedule'])->name('schedule.update');
         Route::get('/schedule/{id}/students', [TeacherDashboardController::class, 'classList'])->name('schedule.students');
         Route::put('/profile/update', [TeacherDashboardController::class, 'updateProfile'])->name('profile.update');
@@ -218,6 +231,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     */
     Route::middleware(['role:student'])->prefix('student')->name('student.')->group(function () {
         Route::get('/dashboard', [StudentDashboardController::class, 'index'])->name('dashboard');
+        Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
+        Route::match(['put', 'patch'], '/profile', [ProfileController::class, 'update'])->name('profile.update');
         Route::get('/attendance', [StudentDashboardController::class, 'attendance'])->name('attendance');
 
         Route::get('/evaluations', [StudentDashboardController::class, 'evaluationsIndex'])->name('evaluations.index');

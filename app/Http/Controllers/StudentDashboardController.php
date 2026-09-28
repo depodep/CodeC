@@ -121,11 +121,7 @@ class StudentDashboardController extends Controller
                 'class_schedules.end_time',
             ];
 
-            if (Schema::hasColumn('class_schedules', 'room')) {
-                $selects[] = 'class_schedules.room';
-            }
-
-            $selects[] = $subjectNameCol ? "subjects.{$subjectNameCol} as subject_name" : DB::raw("'General Course' as subject_name");
+            $selects[] = $subjectNameCol ? "subjects.{$subjectNameCol} as subject_name" : DB::raw("'Unassigned Subject' as subject_name");
             $selects[] = $subjectCodeCol ? "subjects.{$subjectCodeCol} as subject_code" : DB::raw("'NO-CODE' as subject_code");
             $selects[] = $secNameCol ? "academic_sections.{$secNameCol} as section_name" : DB::raw("'Assigned Section' as section_name");
 
@@ -185,6 +181,48 @@ class StudentDashboardController extends Controller
             });
         }
 
+        // Attendance summary for the dashboard.
+        $attendanceTotal = 0;
+        $attendancePresent = 0;
+        $attendanceRate = 0;
+        $subjectAttendance = collect();
+        if (Schema::hasTable('attendance_logs')) {
+            $attendanceStudentColumn = Schema::hasColumn('attendance_logs', 'student_id') ? 'student_id' : 'user_id';
+            $attendanceDateColumn = Schema::hasColumn('attendance_logs', 'attendance_date')
+                ? 'attendance_date'
+                : (Schema::hasColumn('attendance_logs', 'scanned_at') ? 'scanned_at' : 'created_at');
+            $studentLogs = DB::table('attendance_logs')->where($attendanceStudentColumn, $student->id)->get();
+            $attendanceTotal = $studentLogs->count();
+            $attendancePresent = $studentLogs->filter(fn ($log) => in_array(strtolower((string) $log->status), ['present', 'on-time', 'on time', 'late']))->count();
+            $attendanceRate = $attendanceTotal > 0 ? round(($attendancePresent / $attendanceTotal) * 100, 1) : 0;
+
+            if (Schema::hasColumn('attendance_logs', 'class_schedule_id') && $schedules->isNotEmpty()) {
+                $scheduleNames = $schedules->keyBy('id')->map(fn ($schedule) => $schedule->subject_name ?: 'Unassigned Subject');
+                $subjectAttendance = $studentLogs
+                    ->filter(fn ($log) => !empty($log->class_schedule_id) && $scheduleNames->has($log->class_schedule_id))
+                    ->groupBy('class_schedule_id')
+                    ->map(function ($logs, $scheduleId) use ($scheduleNames) {
+                        $total = $logs->count();
+                        $present = $logs->filter(fn ($log) => in_array(strtolower((string) $log->status), ['present', 'on-time', 'on time', 'late']))->count();
+                        return (object) [
+                            'subject_name' => $scheduleNames->get($scheduleId),
+                            'present' => $present,
+                            'total' => $total,
+                            'rate' => $total > 0 ? round(($present / $total) * 100, 1) : 0,
+                        ];
+                    })->values();
+            }
+
+            if ($subjectAttendance->isEmpty() && $schedules->isNotEmpty()) {
+                $subjectAttendance = $schedules->unique('subject_name')->map(fn ($schedule) => (object) [
+                    'subject_name' => $schedule->subject_name ?: 'Unassigned Subject',
+                    'present' => 0,
+                    'total' => 0,
+                    'rate' => 0,
+                ])->values();
+            }
+        }
+
         // 3. Faculty Evaluation Status Check (Safe & Guarded)
         $isEvaluationOpen = Cache::get('evaluations_open', false);
         $activeCycle = null;
@@ -205,7 +243,10 @@ class StudentDashboardController extends Controller
             $isEvaluationOpen = in_array(strtolower((string)$periodStatus), ['open', 'active', '1', 'true']);
         }
 
-        return view('student.dashboard', compact('student', 'schedules', 'isEvaluationOpen', 'activeCycle'));
+        return view('student.dashboard', compact(
+            'student', 'schedules', 'isEvaluationOpen', 'activeCycle',
+            'attendanceTotal', 'attendancePresent', 'attendanceRate', 'subjectAttendance'
+        ));
     }
 
     // ==========================================
@@ -223,11 +264,13 @@ class StudentDashboardController extends Controller
         $cycleId = $activeCycle->id ?? null;
 
         // Kunin ang mga IDs ng guro na nasagutan na ng kasalukuyang estudyante para sa active cycle
-        $evaluatedQuery = DB::table('peer_evaluations')->where('evaluator_id', auth()->id());
+        $evaluatedQuery = DB::table('evaluation_submissions')
+            ->where('form_type', 'student')
+            ->where('student_id', auth()->id());
         if ($cycleId) {
             $evaluatedQuery->where('evaluation_cycle_id', $cycleId);
         }
-        $evaluatedTeacherIds = $evaluatedQuery->pluck('evaluatee_id')->toArray();
+        $evaluatedTeacherIds = $evaluatedQuery->pluck('teacher_id')->toArray();
 
         return view('student.evaluations.index', compact('facultyMembers', 'evaluatedTeacherIds', 'activeCycle'));
     }
@@ -240,9 +283,10 @@ class StudentDashboardController extends Controller
 
         $cycleId = $activeCycle->id ?? null;
 
-        $alreadyQuery = DB::table('peer_evaluations')
-            ->where('evaluator_id', auth()->id())
-            ->where('evaluatee_id', $teacherId);
+        $alreadyQuery = DB::table('evaluation_submissions')
+            ->where('form_type', 'student')
+            ->where('student_id', auth()->id())
+            ->where('teacher_id', $teacherId);
 
         if ($cycleId) {
             $alreadyQuery->where('evaluation_cycle_id', $cycleId);
@@ -282,9 +326,10 @@ class StudentDashboardController extends Controller
 
         $cycleId = $activeCycle->id ?? null;
 
-        $alreadyQuery = DB::table('peer_evaluations')
-            ->where('evaluator_id', auth()->id())
-            ->where('evaluatee_id', $request->evaluatee_id);
+        $alreadyQuery = DB::table('evaluation_submissions')
+            ->where('form_type', 'student')
+            ->where('student_id', auth()->id())
+            ->where('teacher_id', $request->evaluatee_id);
 
         if ($cycleId) {
             $alreadyQuery->where('evaluation_cycle_id', $cycleId);
@@ -298,11 +343,17 @@ class StudentDashboardController extends Controller
         $scores = array_filter((array) $request->input('scores', []), 'is_numeric');
         $averageScore = count($scores) > 0 ? round(array_sum($scores) / count($scores), 2) : 0;
 
-        DB::table('peer_evaluations')->insert([
+        DB::table('evaluation_submissions')->insert([
             'evaluation_cycle_id' => $cycleId,
+            'academic_period_id'  => Schema::hasTable('academic_periods')
+                ? DB::table('academic_periods')->where('is_active', 1)->value('id')
+                : null,
+            'form_type'           => 'student',
+            'student_id'          => auth()->id(),
             'evaluator_id'        => auth()->id(),
-            'evaluatee_id'        => $request->evaluatee_id,
+            'teacher_id'          => $request->evaluatee_id,
             'average_score'       => $averageScore,
+            'status'              => 'SUBMITTED',
             'comments'            => $request->input('comments'),
             'created_at'          => now(),
             'updated_at'          => now(),

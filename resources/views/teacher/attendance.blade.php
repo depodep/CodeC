@@ -5,21 +5,28 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>Student Attendance - Teacher Portal - SIATRACK</title>
+    <script>
+        if (localStorage.getItem('sidebar_collapsed') === 'true') {
+            document.documentElement.classList.add('sidebar-collapsed');
+        }
+    </script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="{{ asset('css/global.css') }}">
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap');
-        body { font-family: 'Plus Jakarta Sans', sans-serif; }
         .sia-card { background: #ffffff; border: 1.5px solid #f1f5f9; border-radius: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.03); }
     </style>
 </head>
-<body class="bg-[#f8fafc] text-slate-800 antialiased min-h-screen flex">
+<body class="bg-[#f8fafc] text-slate-800 antialiased min-h-screen flex"
+      x-data="{ sidebarCollapsed: localStorage.getItem('sidebar_collapsed') === 'true' }" 
+      @sidebar-toggle.window="sidebarCollapsed = $event.detail">
 
     <!-- REUSABLE MAROON SIDEBAR -->
     @include('layouts.sidebar')
 
     <!-- MAIN DASHBOARD CONTENT -->
-    <div style="margin-left: 288px;" class="flex-1 min-h-screen p-8 bg-[#f8fafc]">
+    <main id="app-main" class="flex-1 min-h-screen p-8 bg-[#f8fafc] pl-72 transition-all duration-300" :class="sidebarCollapsed ? 'pl-20' : 'pl-72'">
         
         <!-- Header Profile Bar -->
         <div class="flex items-center justify-between mb-8 pb-4 border-b border-slate-200/60">
@@ -212,7 +219,7 @@
 
         </div>
 
-    </div>
+    </main>
 
 </body>
 </html>
