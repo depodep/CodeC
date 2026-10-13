@@ -12,9 +12,11 @@ class DatabaseSeeder extends Seeder
             RoleSeeder::class,
             DefaultUsersSeeder::class,
             DemoDataSeeder::class,
+            RandomAttendanceSeeder::class,
             PrincipalEvaluationSeeder::class,
             PeerEvaluationSeeder::class,
             StudentAndSelfEvaluationSeeder::class,
+            RandomEvaluationSeeder::class,
         ]);
     }
 }

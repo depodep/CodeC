@@ -48,7 +48,7 @@ document.addEventListener("DOMContentLoaded", function() {
         });
         
         if (nfcInput) {
-            fetch('/api/nfc/latest-tap')
+            fetch('/api/nfc/latest')
                 .then(r => r.json())
                 .then(data => {
                     if (data && data.uid && nfcInput.value !== data.uid) {

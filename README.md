@@ -58,6 +58,22 @@ php artisan db:seed
 3. `DemoDataSeeder` - creates the demo faculty, sections, students, schedules,
    and student-section assignments.
 
+The demo timetable includes eight subject teachers and eight class periods per
+section from Monday through Friday. Periods have varied durations and visible
+gaps; STEM A also has overlapping Math and Chemistry classes from 9:00 AM to
+11:00 AM and PE from 3:00 PM to 5:00 PM.
+
+To complete an existing demo database without deleting student accounts,
+sections, or the existing sample schedules, run:
+
+```bat
+php artisan db:seed --class="Database\Seeders\DemoScheduleCompletionSeeder"
+```
+
+The completion seeder replaces only a recognized starter timetable (the
+original nine demo rows or the previous 120-row demo timetable), adds any
+missing demo faculty, and refuses to change unknown schedules.
+
 For a disposable development database only, reset everything and seed it in
 one command:
 
@@ -80,6 +96,11 @@ All seeded accounts use the email address as the login username.
 | Faculty (Juan Dela Cruz) | `juan.delacruz@siatrack.edu.ph` | `siafaculty@123` |
 | Faculty (Maria Santos) | `maria.santos@siatrack.edu.ph` | `siafaculty@123` |
 | Faculty (Ramon Magsaysay) | `ramon.magsaysay@siatrack.edu.ph` | `siafaculty@123` |
+| Faculty (Liza Reyes) | `liza.reyes@siatrack.edu.ph` | `siafaculty@123` |
+| Faculty (Carlo Mendoza) | `carlo.mendoza@siatrack.edu.ph` | `siafaculty@123` |
+| Faculty (Ana Villanueva) | `ana.villanueva@siatrack.edu.ph` | `siafaculty@123` |
+| Faculty (Roberto Garcia) | `roberto.garcia@siatrack.edu.ph` | `siafaculty@123` |
+| Faculty (Teresa Flores) | `teresa.flores@siatrack.edu.ph` | `siafaculty@123` |
 
 The 30 seeded student accounts all use the password `onesia@123`. Their
 emails follow `first-name.last-name@siatrack.edu.ph` (spaces in surnames are
@@ -132,15 +153,28 @@ php artisan serve
 
 Then open <http://127.0.0.1:8000>.
 
-For the NFC workflow, keep the Laravel server running and start the bridge in
-a second terminal:
+For automatic post-subject absence notifications, keep Laravel's scheduler
+running in a second terminal:
+
+```bat
+php artisan schedule:work
+```
+
+The scheduler checks completed subject schedules every minute. It only sends
+notifications when the schedule, roster, and attendance data are usable; a
+completely empty attendance scan is treated as incomplete data. Successful or
+queued notifications are keyed to the subject/date/student or adviser so they
+are not sent again. Failed deliveries are recorded and retried later.
+
+For the NFC workflow, keep the Laravel server and scheduler running, then
+start the bridge in another terminal:
 
 ```bat
 python -u nfc_bridge.py
 ```
 
 The bridge posts card taps to `http://127.0.0.1:8000/api/nfc/tap`. On Windows,
-the `START_SERVER.bat` helper starts both the Laravel server and the NFC
+the `START_SERVER.bat` helper starts the Laravel server, scheduler, and NFC
 bridge, then opens the application:
 
 ```bat

@@ -23,17 +23,11 @@
         </div>
 
         <div class="flex flex-wrap items-center gap-3">
-            <!-- School Year & Evaluation Period Form -->
+            <!-- School Year Form -->
             <form method="GET" action="{{ route('admin.evaluations.monitoring') }}" id="filterForm" class="flex flex-wrap items-center gap-2">
-                <select name="school_year" onchange="this.form.submit()" class="px-3 py-2 text-xs font-bold bg-slate-50 border border-slate-200 rounded-xl focus:border-[#590d0d] outline-none cursor-pointer">
+                <select name="school_year" onchange="this.form.submit()" class="px-3.5 py-2 text-xs font-black bg-slate-50 border-2 border-slate-200 rounded-xl focus:border-[#590d0d] outline-none cursor-pointer">
                     @foreach($schoolYears as $sy)
-                        <option value="{{ $sy }}" {{ $activeSchoolYear == $sy ? 'selected' : '' }}>A.Y. {{ $sy }}</option>
-                    @endforeach
-                </select>
-
-                <select name="evaluation_period" onchange="this.form.submit()" class="px-3 py-2 text-xs font-bold bg-slate-50 border border-slate-200 rounded-xl focus:border-[#590d0d] outline-none cursor-pointer">
-                    @foreach($evaluationPeriods as $ep)
-                        <option value="{{ $ep }}" {{ $activePeriod == $ep ? 'selected' : '' }}>{{ $ep }}</option>
+                        <option value="{{ $sy }}" {{ $activeSchoolYear == $sy ? 'selected' : '' }}>Academic Year {{ $sy }}</option>
                     @endforeach
                 </select>
             </form>
@@ -103,8 +97,8 @@
             @foreach($typesData as $key => $type)
             <div class="p-4 bg-white rounded-2xl border border-slate-200 shadow-xs space-y-3">
                 <div class="flex items-center justify-between">
-                    <span class="text-xs font-bold text-slate-700">{{ $type['label'] }}</span>
-                    <span class="px-2 py-0.5 rounded text-[10px] font-black bg-red-50 text-[#590d0d] border border-red-200">{{ $type['percentage'] }}%</span>
+                    <span class="text-xs font-bold text-slate-700">{{ $type['label'] ?? ucfirst($key) }}</span>
+                    <span class="px-2 py-0.5 rounded text-[10px] font-black bg-red-50 text-[#590d0d] border border-red-200">{{ $type['percentage'] ?? 0 }}%</span>
                 </div>
                 <div class="flex items-baseline justify-between text-xs">
                     <span class="font-extrabold text-slate-900 text-sm">{{ $type['completed'] }} / {{ $type['expected'] }}</span>

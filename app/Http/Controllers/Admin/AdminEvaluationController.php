@@ -208,6 +208,8 @@ class AdminEvaluationController extends Controller
                 : 0;
         }
 
+        $isEvaluationActive = (bool) $activeCycle;
+
         return view('admin.evaluations.periods', compact(
             'activeCycle', 
             'activeSchoolYear',
@@ -217,12 +219,17 @@ class AdminEvaluationController extends Controller
             'selectedType', 
             'activeForm',
             'counts',
-            'versionCounts'
+            'versionCounts',
+            'isEvaluationActive'
         ));
     }
 
     public function editForm($type)
     {
+        $isEvaluationActive = Schema::hasTable('evaluation_cycles')
+            ? DB::table('evaluation_cycles')->where('status', 'active')->where('is_active', 1)->exists()
+            : false;
+
         $validTypes = ['principal', 'peer', 'student', 'self'];
         if (!in_array($type, $validTypes)) {
             $type = 'principal';
@@ -353,12 +360,20 @@ class AdminEvaluationController extends Controller
             : collect();
 
         return view('admin.evaluations.edit-form', compact(
-            'form', 'type', 'formTypeName', 'ratingScales', 'sections', 'formVersions'
+            'form', 'type', 'formTypeName', 'ratingScales', 'sections', 'formVersions', 'isEvaluationActive'
         ));
     }
 
     public function saveForm(Request $request, $type)
     {
+        $isEvaluationActive = Schema::hasTable('evaluation_cycles')
+            ? DB::table('evaluation_cycles')->where('status', 'active')->where('is_active', 1)->exists()
+            : false;
+
+        if ($isEvaluationActive) {
+            return back()->with('error', 'Cannot update evaluation forms while an evaluation period is currently ACTIVE. Please end or close the active evaluation cycle first.');
+        }
+
         $request->validate([
             'title'        => 'required|string|max:255',
             'instructions' => 'nullable|string',
@@ -399,17 +414,45 @@ class AdminEvaluationController extends Controller
                             ])->values()->all(),
                         'sections' => $this->formSectionsPayload($formId),
                     ];
-                    DB::table('evaluation_form_versions')->updateOrInsert(
-                        ['form_id' => $formId, 'version' => $form->version],
-                        ['payload' => json_encode($snapshot), 'created_at' => now(), 'updated_at' => now()]
-                    );
+
+                    // Only archive if something actually changed
+                    $incomingSnapshot = [
+                        'title' => $request->title,
+                        'instructions' => $request->instructions,
+                        'rating_scales' => $payload['rating_scales'] ?? [],
+                        'sections' => $payload['sections'] ?? [],
+                    ];
+
+                    $existingHash = md5(json_encode($snapshot));
+                    $incomingHash = md5(json_encode($incomingSnapshot));
+
+                    if ($existingHash !== $incomingHash) {
+                        DB::table('evaluation_form_versions')->updateOrInsert(
+                            ['form_id' => $formId, 'version' => $form->version],
+                            ['payload' => json_encode($snapshot), 'created_at' => now(), 'updated_at' => now()]
+                        );
+                        DB::table('evaluation_forms')->where('id', $formId)->update([
+                            'title'        => $request->title,
+                            'instructions' => $request->instructions,
+                            'version'      => $form->version + 1,
+                            'updated_at'   => now(),
+                        ]);
+                    } else {
+                        // Nothing changed — just update title/instructions if different text only
+                        DB::table('evaluation_forms')->where('id', $formId)->update([
+                            'title'        => $request->title,
+                            'instructions' => $request->instructions,
+                            'updated_at'   => now(),
+                        ]);
+                    }
+                } else {
+                    DB::table('evaluation_forms')->where('id', $formId)->update([
+                        'title'        => $request->title,
+                        'instructions' => $request->instructions,
+                        'version'      => $form->version + 1,
+                        'updated_at'   => now(),
+                    ]);
                 }
-                DB::table('evaluation_forms')->where('id', $formId)->update([
-                    'title'        => $request->title,
-                    'instructions' => $request->instructions,
-                    'version'      => $form->version + 1,
-                    'updated_at'   => now(),
-                ]);
             }
 
             // Save rating scales
@@ -1073,6 +1116,23 @@ class AdminEvaluationController extends Controller
         return back()->with('success', $msg);
     }
 
+    private function getEvaluationDescriptor($score)
+    {
+        if ($score === null || $score === '') {
+            return ['text' => 'Pending', 'class' => 'bg-slate-100 text-slate-600 border-slate-200'];
+        }
+        $score = (float)$score;
+        if ($score >= 4.50) {
+            return ['text' => 'Outstanding', 'class' => 'bg-emerald-50 text-emerald-800 border-emerald-200'];
+        } elseif ($score >= 3.50) {
+            return ['text' => 'Very Satisfactory', 'class' => 'bg-blue-50 text-blue-800 border-blue-200'];
+        } elseif ($score >= 2.50) {
+            return ['text' => 'Satisfactory', 'class' => 'bg-amber-50 text-amber-800 border-amber-200'];
+        } else {
+            return ['text' => 'Needs Improvement', 'class' => 'bg-red-50 text-red-800 border-red-200'];
+        }
+    }
+
     public function results(Request $request)
     {
         $search  = trim((string) $request->query('search'));
@@ -1108,6 +1168,62 @@ class AdminEvaluationController extends Controller
         }
 
         $allFaculty = $query->orderBy('last_name', 'asc')->get();
+        $allUsers = User::all()->keyBy('id');
+
+        $allQuestionsByForm = DB::table('evaluation_questions')
+            ->where('is_active', 1)
+            ->orderBy('order_num', 'asc')
+            ->orderBy('id', 'asc')
+            ->get()
+            ->groupBy('form_type');
+
+        if ($allQuestionsByForm->isEmpty()) {
+            $allQuestionsByForm = DB::table('evaluation_questions')
+                ->orderBy('order_num', 'asc')
+                ->orderBy('id', 'asc')
+                ->get()
+                ->groupBy('form_type');
+        }
+
+        $buildQuestionResponses = function($formType, $rawAnswersJson) use ($allQuestionsByForm) {
+            $qList = $allQuestionsByForm->get($formType, collect());
+            $answers = is_array($rawAnswersJson) ? $rawAnswersJson : (json_decode($rawAnswersJson ?? '', true) ?: []);
+
+            $responses = [];
+            foreach ($qList as $idx => $q) {
+                $rating = $answers[$q->id] ?? $answers[(string)$q->id] ?? $answers[$idx + 1] ?? null;
+                $ratingNum = is_numeric($rating) ? (int)$rating : null;
+
+                $ratingLabel = match($ratingNum) {
+                    5 => 'Outstanding',
+                    4 => 'Very Satisfactory',
+                    3 => 'Satisfactory',
+                    2 => 'Fairly Satisfactory',
+                    1 => 'Needs Improvement',
+                    default => $rating !== null ? (string)$rating : 'Not Rated'
+                };
+
+                $badgeColor = match($ratingNum) {
+                    5 => 'bg-emerald-100 text-emerald-800 border-emerald-300',
+                    4 => 'bg-blue-100 text-blue-800 border-blue-300',
+                    3 => 'bg-amber-100 text-amber-800 border-amber-300',
+                    2 => 'bg-orange-100 text-orange-800 border-orange-300',
+                    1 => 'bg-red-100 text-red-800 border-red-300',
+                    default => 'bg-slate-100 text-slate-500 border-slate-200'
+                };
+
+                $responses[] = [
+                    'id' => $q->id,
+                    'number' => $idx + 1,
+                    'category' => $q->category,
+                    'question' => $q->question,
+                    'rating' => $ratingNum,
+                    'rating_label' => $ratingLabel,
+                    'badge_color' => $badgeColor,
+                ];
+            }
+            return $responses;
+        };
 
         // Fetch section advisorship mapping if table exists
         $adviserSections = collect([]);
@@ -1148,7 +1264,7 @@ class AdminEvaluationController extends Controller
             : collect([]);
 
         $totalSubmissions = 0;
-        $facultyMetrics = $allFaculty->map(function($teacher) use (&$totalSubmissions, $selectedCycle, $publications, $adviserSections, $subjectTeachers, $weights) {
+        $facultyMetrics = $allFaculty->map(function($teacher) use (&$totalSubmissions, $selectedCycle, $publications, $adviserSections, $subjectTeachers, $weights, $allUsers, $buildQuestionResponses) {
             $peerCount = 0;
             $studentCount = 0;
             $selfCount = 0;
@@ -1157,32 +1273,89 @@ class AdminEvaluationController extends Controller
             $studentAvg = null;
             $principalAvg = null;
             $selfAvg = null;
-            $comments = collect([]);
+            $submissions = collect([]);
 
+            // 1. Peer Evaluations
             if (Schema::hasTable('peer_evaluations')) {
                 $peerQuery = DB::table('peer_evaluations')->where('evaluatee_id', $teacher->id);
-                if ($selectedCycle) {
+                if ($selectedCycle && Schema::hasColumn('peer_evaluations', 'evaluation_cycle_id')) {
                     $peerQuery->where('evaluation_cycle_id', $selectedCycle->id);
                 }
-                $peerEvals = $peerQuery->get();
+                $peerEvals = $peerQuery->orderBy('created_at', 'desc')->get();
                 $peerCount = $peerEvals->count();
                 $peerAvg = $peerCount > 0 ? round($peerEvals->avg('average_score'), 2) : null;
-                $comments = $peerEvals->whereNotNull('comments')->pluck('comments')->filter()->values();
+
+                foreach ($peerEvals as $pe) {
+                    $evUser = $allUsers->get($pe->evaluator_id);
+                    $evName = $evUser ? ($evUser->first_name . ' ' . $evUser->last_name) : ('Evaluator #' . $pe->evaluator_id);
+                    $evIdNum = $evUser ? ($evUser->id_number ?? '') : '';
+                    $score = (float)$pe->average_score;
+                    $desc = $this->getEvaluationDescriptor($score);
+                    $submissions->push((object)[
+                        'id' => 'peer-' . $pe->id,
+                        'source_id' => $pe->id,
+                        'type' => 'peer',
+                        'type_label' => 'Peer Evaluation',
+                        'badge_class' => 'bg-blue-50 text-blue-800 border-blue-200',
+                        'icon' => 'fa-user-tie',
+                        'evaluator_id' => $pe->evaluator_id,
+                        'evaluator_name' => $evName,
+                        'evaluator_role' => 'Peer Faculty',
+                        'evaluator_id_number' => $evIdNum,
+                        'evaluatee_id' => $teacher->id,
+                        'evaluatee_name' => 'Prof. ' . $teacher->first_name . ' ' . $teacher->last_name,
+                        'score' => $score,
+                        'score_formatted' => number_format($score, 2),
+                        'descriptor' => $desc['text'],
+                        'descriptor_class' => $desc['class'],
+                        'comments' => $pe->comments,
+                        'question_responses' => $buildQuestionResponses('peer', $pe->answers ?? null),
+                        'submitted_at' => $pe->created_at ? \Carbon\Carbon::parse($pe->created_at) : null,
+                        'date_formatted' => $pe->created_at ? \Carbon\Carbon::parse($pe->created_at)->format('M d, Y h:i A') : 'N/A',
+                    ]);
+                }
             }
 
+            // 2. Self Evaluations
             if (Schema::hasTable('self_evaluations')) {
                 $selfTeacherColumn = Schema::hasColumn('self_evaluations', 'teacher_id') ? 'teacher_id' : 'user_id';
                 $selfQuery = DB::table('self_evaluations')->where($selfTeacherColumn, $teacher->id);
-                if ($selectedCycle) {
-                    if (Schema::hasColumn('self_evaluations', 'evaluation_cycle_id')) {
-                        $selfQuery->where('evaluation_cycle_id', $selectedCycle->id);
-                    }
+                if ($selectedCycle && Schema::hasColumn('self_evaluations', 'evaluation_cycle_id')) {
+                    $selfQuery->where('evaluation_cycle_id', $selectedCycle->id);
                 }
-                $selfEvaluations = $selfQuery->get();
+                $selfEvaluations = $selfQuery->orderBy('created_at', 'desc')->get();
                 $selfCount = $selfEvaluations->count();
                 $selfAvg = $selfCount > 0 ? round((float) $selfEvaluations->avg('average_score'), 2) : null;
+
+                foreach ($selfEvaluations as $se) {
+                    $score = (float)$se->average_score;
+                    $desc = $this->getEvaluationDescriptor($score);
+                    $submissions->push((object)[
+                        'id' => 'self-' . $se->id,
+                        'source_id' => $se->id,
+                        'type' => 'self',
+                        'type_label' => 'Self Evaluation',
+                        'badge_class' => 'bg-amber-50 text-amber-800 border-amber-200',
+                        'icon' => 'fa-user-check',
+                        'evaluator_id' => $teacher->id,
+                        'evaluator_name' => 'Prof. ' . $teacher->first_name . ' ' . $teacher->last_name . ' (Self)',
+                        'evaluator_role' => 'Faculty (Self)',
+                        'evaluator_id_number' => $teacher->id_number ?? '',
+                        'evaluatee_id' => $teacher->id,
+                        'evaluatee_name' => 'Prof. ' . $teacher->first_name . ' ' . $teacher->last_name,
+                        'score' => $score,
+                        'score_formatted' => number_format($score, 2),
+                        'descriptor' => $desc['text'],
+                        'descriptor_class' => $desc['class'],
+                        'comments' => $se->comments,
+                        'question_responses' => $buildQuestionResponses('self', $se->answers ?? null),
+                        'submitted_at' => $se->created_at ? \Carbon\Carbon::parse($se->created_at) : null,
+                        'date_formatted' => $se->created_at ? \Carbon\Carbon::parse($se->created_at)->format('M d, Y h:i A') : 'N/A',
+                    ]);
+                }
             }
 
+            // 3. Evaluation Submissions (Student & Principal)
             if (Schema::hasTable('evaluation_submissions')) {
                 $subQuery = DB::table('evaluation_submissions');
                 if (Schema::hasColumn('evaluation_submissions', 'teacher_id')) {
@@ -1195,21 +1368,130 @@ class AdminEvaluationController extends Controller
                 }
 
                 if (Schema::hasColumn('evaluation_submissions', 'form_type')) {
-                    $studentEvaluations = (clone $subQuery)->where('form_type', 'student')->get();
-                    $principalEvaluations = (clone $subQuery)->where('form_type', 'principal')->get();
+                    $studentEvaluations = (clone $subQuery)->where('form_type', 'student')->orderBy('created_at', 'desc')->get();
+                    $principalEvaluations = (clone $subQuery)->where('form_type', 'principal')->orderBy('created_at', 'desc')->get();
                     $studentCount = $studentEvaluations->count();
                     $principalCount = $principalEvaluations->count();
                     $studentAvg = $studentCount > 0 ? round((float) $studentEvaluations->avg('average_score'), 2) : null;
                     $principalAvg = $principalCount > 0 ? round((float) $principalEvaluations->avg('average_score'), 2) : null;
+
                     if ($selfCount === 0) {
-                        $selfEvaluations = (clone $subQuery)->where('form_type', 'self')->get();
+                        $selfEvaluations = (clone $subQuery)->where('form_type', 'self')->orderBy('created_at', 'desc')->get();
                         $selfCount = $selfEvaluations->count();
                         $selfAvg = $selfCount > 0 ? round((float) $selfEvaluations->avg('average_score'), 2) : null;
+                        foreach ($selfEvaluations as $se) {
+                            $score = (float)$se->average_score;
+                            $desc = $this->getEvaluationDescriptor($score);
+                            $submissions->push((object)[
+                                'id' => 'self-' . $se->id,
+                                'source_id' => $se->id,
+                                'type' => 'self',
+                                'type_label' => 'Self Evaluation',
+                                'badge_class' => 'bg-amber-50 text-amber-800 border-amber-200',
+                                'icon' => 'fa-user-check',
+                                'evaluator_id' => $teacher->id,
+                                'evaluator_name' => 'Prof. ' . $teacher->first_name . ' ' . $teacher->last_name . ' (Self)',
+                                'evaluator_role' => 'Faculty (Self)',
+                                'evaluator_id_number' => $teacher->id_number ?? '',
+                                'evaluatee_id' => $teacher->id,
+                                'evaluatee_name' => 'Prof. ' . $teacher->first_name . ' ' . $teacher->last_name,
+                                'score' => $score,
+                                'score_formatted' => number_format($score, 2),
+                                'descriptor' => $desc['text'],
+                                'descriptor_class' => $desc['class'],
+                                'comments' => $se->comments,
+                                'question_responses' => $buildQuestionResponses('self', $se->answers ?? null),
+                                'submitted_at' => $se->created_at ? \Carbon\Carbon::parse($se->created_at) : null,
+                                'date_formatted' => $se->created_at ? \Carbon\Carbon::parse($se->created_at)->format('M d, Y h:i A') : 'N/A',
+                            ]);
+                        }
+                    }
+
+                    foreach ($studentEvaluations as $ste) {
+                        $evaluatorId = $ste->evaluator_id ?? $ste->student_id ?? null;
+                        $evUser = $evaluatorId ? $allUsers->get($evaluatorId) : null;
+                        $evName = $evUser ? ($evUser->first_name . ' ' . $evUser->last_name) : 'Student Evaluator';
+                        $evIdNum = $evUser ? ($evUser->id_number ?? '') : '';
+                        $evRole = 'Student Evaluator';
+                        if ($evUser && !empty($evUser->section)) {
+                            $evRole .= ' (' . $evUser->section . ')';
+                        }
+                        $score = (float)$ste->average_score;
+                        $desc = $this->getEvaluationDescriptor($score);
+                        $submissions->push((object)[
+                            'id' => 'student-' . $ste->id,
+                            'source_id' => $ste->id,
+                            'type' => 'student',
+                            'type_label' => 'Student Evaluation',
+                            'badge_class' => 'bg-emerald-50 text-emerald-800 border-emerald-200',
+                            'icon' => 'fa-graduation-cap',
+                            'evaluator_id' => $evaluatorId,
+                            'evaluator_name' => $evName,
+                            'evaluator_role' => $evRole,
+                            'evaluator_id_number' => $evIdNum,
+                            'evaluatee_id' => $teacher->id,
+                            'evaluatee_name' => 'Prof. ' . $teacher->first_name . ' ' . $teacher->last_name,
+                            'score' => $score,
+                            'score_formatted' => number_format($score, 2),
+                            'descriptor' => $desc['text'],
+                            'descriptor_class' => $desc['class'],
+                            'comments' => $ste->comments,
+                            'question_responses' => $buildQuestionResponses('student', $ste->answers ?? null),
+                            'submitted_at' => $ste->created_at ? \Carbon\Carbon::parse($ste->created_at) : null,
+                            'date_formatted' => $ste->created_at ? \Carbon\Carbon::parse($ste->created_at)->format('M d, Y h:i A') : 'N/A',
+                        ]);
+                    }
+
+                    foreach ($principalEvaluations as $pre) {
+                        $evaluatorId = $pre->evaluator_id ?? null;
+                        $evUser = $evaluatorId ? $allUsers->get($evaluatorId) : null;
+                        $evName = $evUser ? ($evUser->first_name . ' ' . $evUser->last_name) : 'School Principal / Head';
+                        $evIdNum = $evUser ? ($evUser->id_number ?? '') : '';
+                        $score = (float)$pre->average_score;
+                        $desc = $this->getEvaluationDescriptor($score);
+                        $submissions->push((object)[
+                            'id' => 'principal-' . $pre->id,
+                            'source_id' => $pre->id,
+                            'type' => 'principal',
+                            'type_label' => "Principal's Evaluation",
+                            'badge_class' => 'bg-purple-50 text-purple-800 border-purple-200',
+                            'icon' => 'fa-user-shield',
+                            'evaluator_id' => $evaluatorId,
+                            'evaluator_name' => $evName,
+                            'evaluator_role' => 'Principal / Administrator',
+                            'evaluator_id_number' => $evIdNum,
+                            'evaluatee_id' => $teacher->id,
+                            'evaluatee_name' => 'Prof. ' . $teacher->first_name . ' ' . $teacher->last_name,
+                            'score' => $score,
+                            'score_formatted' => number_format($score, 2),
+                            'descriptor' => $desc['text'],
+                            'descriptor_class' => $desc['class'],
+                            'comments' => $pre->comments,
+                            'question_responses' => $buildQuestionResponses('principal', $pre->answers ?? null),
+                            'submitted_at' => $pre->created_at ? \Carbon\Carbon::parse($pre->created_at) : null,
+                            'date_formatted' => $pre->created_at ? \Carbon\Carbon::parse($pre->created_at)->format('M d, Y h:i A') : 'N/A',
+                        ]);
                     }
                 } else {
                     $studentCount = $subQuery->count();
                 }
             }
+
+            $submissions = $submissions->sortByDesc('submitted_at')->values();
+
+            // Extract all comments from all evaluation types
+            $comments = $submissions->filter(fn($s) => !empty(trim((string)$s->comments)))->map(function($s) {
+                return [
+                    'text' => $s->comments,
+                    'author' => $s->evaluator_name,
+                    'role' => $s->evaluator_role,
+                    'type' => $s->type,
+                    'type_label' => $s->type_label,
+                    'badge_class' => $s->badge_class,
+                    'score' => $s->score_formatted,
+                    'date' => $s->date_formatted,
+                ];
+            })->values();
 
             $teacherTotalSubmissions = $peerCount + $studentCount + $selfCount + $principalCount;
             $totalSubmissions += $teacherTotalSubmissions;
@@ -1226,24 +1508,24 @@ class AdminEvaluationController extends Controller
                 }
             }
 
-            $descriptor = 'Pending';
-            $badgeClass = 'bg-slate-100 text-slate-600 border-slate-200';
 
-            if ($peerAvg !== null) {
-                if ($peerAvg >= 4.50) {
-                    $descriptor = 'Outstanding';
-                    $badgeClass = 'bg-emerald-50 text-emerald-800 border-emerald-200';
-                } elseif ($peerAvg >= 3.50) {
-                    $descriptor = 'Very Satisfactory';
-                    $badgeClass = 'bg-blue-50 text-blue-800 border-blue-200';
-                } elseif ($peerAvg >= 2.50) {
-                    $descriptor = 'Satisfactory';
-                    $badgeClass = 'bg-amber-50 text-amber-800 border-amber-200';
-                } else {
-                    $descriptor = 'Needs Improvement';
-                    $badgeClass = 'bg-red-50 text-red-800 border-red-200';
-                }
+            // Overall mean = weighted formula: each type avg / 5 * weight => total out of 100, then convert to /5 scale
+            // weightedScore is already computed above (out of 100)
+            $overallMean = $weightedScore > 0 ? round(($weightedScore / 100) * 5, 2) : null;
+            // Fall back to simple average if no weights could be applied
+            if ($overallMean === null || $overallMean == 0) {
+                $availableAverages = array_filter([
+                    'student'   => $studentAvg,
+                    'principal' => $principalAvg,
+                    'self'      => $selfAvg,
+                    'peer'      => $peerAvg,
+                ], fn($v) => $v !== null);
+                $overallMean = count($availableAverages) > 0 ? round(array_sum($availableAverages) / count($availableAverages), 2) : null;
             }
+            $descInfo = $this->getEvaluationDescriptor($overallMean ?? $peerAvg);
+            $descriptor = $descInfo['text'];
+            $badgeClass = $descInfo['class'];
+
 
             $pub = $publications->get($teacher->id);
             $isPublished = $pub ? (bool)$pub->is_published : false;
@@ -1279,10 +1561,12 @@ class AdminEvaluationController extends Controller
                 'self_count'        => $selfCount,
                 'principal_count'   => $principalCount,
                 'total_submissions' => $teacherTotalSubmissions,
+                'submissions'       => $submissions,
                 'peer_avg'          => $peerAvg ? (float)$peerAvg : null,
                 'student_avg'       => $studentAvg,
                 'principal_avg'     => $principalAvg,
                 'self_avg'          => $selfAvg,
+                'overall_mean'      => $overallMean,
                 'weighted_score'    => round($weightedScore, 2),
                 'student_weighted'  => $studentAvg !== null ? round(($studentAvg / 5) * $weights['student'], 2) : null,
                 'principal_weighted'=> $principalAvg !== null ? round(($principalAvg / 5) * $weights['principal'], 2) : null,
@@ -1314,18 +1598,21 @@ class AdminEvaluationController extends Controller
             ? \Carbon\Carbon::parse($lastPublishedRecord->published_at) 
             : null;
 
-        $distOutstanding = $facultyMetrics->filter(fn($f) => $f->peer_avg >= 4.50)->count();
-        $distVerySat = $facultyMetrics->filter(fn($f) => $f->peer_avg >= 3.50 && $f->peer_avg < 4.50)->count();
-        $distSat = $facultyMetrics->filter(fn($f) => $f->peer_avg >= 2.50 && $f->peer_avg < 3.50)->count();
-        $distNeedsImp = $facultyMetrics->filter(fn($f) => $f->peer_avg !== null && $f->peer_avg < 2.50)->count();
+        $distOutstanding = $facultyMetrics->filter(fn($f) => ($f->overall_mean ?? $f->peer_avg) >= 4.50)->count();
+        $distVerySat = $facultyMetrics->filter(fn($f) => ($f->overall_mean ?? $f->peer_avg) >= 3.50 && ($f->overall_mean ?? $f->peer_avg) < 4.50)->count();
+        $distSat = $facultyMetrics->filter(fn($f) => ($f->overall_mean ?? $f->peer_avg) >= 2.50 && ($f->overall_mean ?? $f->peer_avg) < 3.50)->count();
+        $distNeedsImp = $facultyMetrics->filter(fn($f) => ($f->overall_mean ?? $f->peer_avg) !== null && ($f->overall_mean ?? $f->peer_avg) < 2.50)->count();
         $distPending = $totalFaculty - $totalEvaluated;
 
         $barLabels = $facultyMetrics->pluck('short_name')->toArray();
         $barScores = $facultyMetrics->map(fn($f) => $f->weighted_score ?? 0)->toArray();
         $distributionValues = [$distOutstanding, $distVerySat, $distSat, $distNeedsImp, $distPending];
 
+        // Master collection of all submitted evaluations from evaluators for this cycle
+        $allSubmissions = $facultyMetrics->flatMap(fn($f) => $f->submissions)->sortByDesc('submitted_at')->values();
+
         return view('admin.evaluations.results', compact(
-            'selectedCycle', 'allCycles', 'facultyMetrics', 'totalFaculty', 'totalEvaluated', 'completionRate',
+            'selectedCycle', 'allCycles', 'facultyMetrics', 'allSubmissions', 'totalFaculty', 'totalEvaluated', 'completionRate',
             'overallInstMean', 'highestScore', 'lowestScore', 'totalSubmissions', 'publishedCount', 'lastPublishedAt',
             'barLabels', 'barScores', 'distributionValues', 'search', 'weights'
         ));

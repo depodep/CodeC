@@ -25,6 +25,9 @@ class AdminUserController extends Controller
         $strandFilter      = trim((string)$request->query('strand', ''));
         $sectionFilter     = trim((string)$request->query('section', ''));
         $designationFilter = trim((string)$request->query('designation', ''));
+        $perPage           = in_array((int) $request->query('per_page', 10), [10, 25, 50], true)
+            ? (int) $request->query('per_page', 10)
+            : 10;
         $selectedGradeNumber = (int) preg_replace('/\D+/', '', $gradeFilter);
         if ($selectedGradeNumber >= 7 && $selectedGradeNumber <= 10) {
             $strandFilter = '';
@@ -109,7 +112,7 @@ class AdminUserController extends Controller
         // Sort alphabetically by last name and first name
         $users = $query->orderBy('last_name', 'asc')
                        ->orderBy('first_name', 'asc')
-                       ->paginate(15)
+        ->paginate($perPage)
                        ->withQueryString()
                        ->through(function ($user) {
                            if ($user->role_id == 3 && $user->sections->isNotEmpty()) {
@@ -214,6 +217,7 @@ class AdminUserController extends Controller
             'strandFilter',
             'sectionFilter',
             'designationFilter',
+            'perPage',
             'maleCount', 
             'femaleCount',
             'gradeLevels',
@@ -272,7 +276,7 @@ class AdminUserController extends Controller
                 : ['required', 'string', 'max:50', Rule::unique('users', 'id_number')],
             'student_id' => ['required', 'string', 'max:50'],
             'phone_number' => $isStudent ? ['required', 'string', 'max:20'] : ['nullable', 'string', 'max:20'],
-            'gender' => $isStudent ? ['required', 'string', 'in:Male,Female'] : ['nullable', 'string'],
+            'gender' => ['required', 'string', 'in:Male,Female,male,female,1,2'],
             'grade_level' => $isStudent ? ['required', 'string', 'max:20'] : ['nullable', 'string', 'max:20'],
             'section' => $isStudent ? ['required', 'string', 'max:255'] : ['nullable', 'string', 'max:255'],
             'strand' => $isStudent && !$this->isJuniorHigh($request->input('grade_level'))
@@ -328,7 +332,10 @@ class AdminUserController extends Controller
 
             if (in_array('id_number', $cols)) $userData['id_number'] = $request->id_number;
             if (in_array('student_id', $cols)) $userData['student_id'] = $request->student_id;
-            if (in_array('gender', $cols)) $userData['gender'] = $request->gender;
+            if (in_array('gender', $cols)) {
+                $g = strtolower(trim((string)$request->gender));
+                $userData['gender'] = ($g === '2' || $g === 'female' || $g === 'f') ? 'Female' : 'Male';
+            }
             if (in_array('phone_number', $cols)) $userData['phone_number'] = $request->phone_number;
 
             $teacherType = $request->input('teacher_type');
@@ -427,7 +434,7 @@ class AdminUserController extends Controller
                 : ['required', 'string', 'max:50', Rule::unique('users', 'id_number')->ignore($user->id)],
             'student_id' => ['required', 'string', 'max:50'],
             'phone_number' => $isStudent ? ['required', 'string', 'max:20'] : ['nullable', 'string', 'max:20'],
-            'gender' => $isStudent ? ['required', 'string', 'in:Male,Female'] : ['nullable', 'string'],
+            'gender' => ['required', 'string', 'in:Male,Female,male,female,1,2'],
             'grade_level' => $isStudent ? ['required', 'string', 'max:20'] : ['nullable', 'string', 'max:20'],
             'section' => $isStudent ? ['required', 'string', 'max:255'] : ['nullable', 'string', 'max:255'],
             'strand' => $isStudent && !$this->isJuniorHigh($request->input('grade_level'))
@@ -478,7 +485,10 @@ class AdminUserController extends Controller
             if (in_array('role', $cols)) $user->role = $roleString;
             if (in_array('id_number', $cols)) $user->id_number = $request->id_number;
             if (in_array('student_id', $cols)) $user->student_id = $request->student_id;
-            if (in_array('gender', $cols)) $user->gender = $request->gender;
+            if (in_array('gender', $cols)) {
+                $g = strtolower(trim((string)$request->gender));
+                $user->gender = ($g === '2' || $g === 'female' || $g === 'f') ? 'Female' : 'Male';
+            }
             if (in_array('phone_number', $cols)) $user->phone_number = $request->phone_number;
             
             if (in_array('grade_level', $cols)) {

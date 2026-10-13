@@ -7,6 +7,10 @@ use Illuminate\Support\Facades\View;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\DB;
 
+use Illuminate\Support\Facades\Gate;
+use App\Models\OutboundMessage;
+use App\Policies\OutboundMessagePolicy;
+
 class AppServiceProvider extends ServiceProvider
 {
     public function register(): void
@@ -16,6 +20,8 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        Gate::policy(OutboundMessage::class, OutboundMessagePolicy::class);
+
         View::composer('*', function ($view) {
             $year = '2027-2028';
             $sem  = '2nd Semester';

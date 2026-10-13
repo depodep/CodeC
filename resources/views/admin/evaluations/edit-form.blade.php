@@ -61,13 +61,17 @@
             </div>
         @endif
 
-        @if(session('error'))
-            <div class="p-4 bg-rose-50 border-2 border-rose-300 text-rose-900 text-xs font-bold rounded-2xl flex items-center justify-between shadow-xs">
-                <div class="flex items-center gap-2.5">
-                    <i class="fa-solid fa-circle-exclamation text-rose-600 text-base shrink-0"></i>
-                    <span>{{ session('error') }}</span>
+        @if(!empty($isEvaluationActive))
+            <div class="p-5 bg-amber-50 border-2 border-amber-300 text-amber-950 rounded-2xl flex items-center justify-between shadow-xs">
+                <div class="flex items-center gap-3.5">
+                    <div class="w-10 h-10 rounded-xl bg-amber-200 text-amber-800 flex items-center justify-center text-lg shrink-0">
+                        <i class="fa-solid fa-lock"></i>
+                    </div>
+                    <div>
+                        <h4 class="text-sm font-black text-amber-950">Form is Locked for Editing</h4>
+                        <p class="text-xs font-semibold text-amber-800 mt-0.5">An evaluation period is currently ACTIVE. To prevent corrupting in-progress evaluations and answer ratings, updating or saving this questionnaire is disabled until the evaluation cycle is ended.</p>
+                    </div>
                 </div>
-                <button @click="$el.parentElement.remove()" class="text-rose-700 hover:text-rose-950"><i class="fa-solid fa-xmark"></i></button>
             </div>
         @endif
 
@@ -374,10 +378,17 @@
                 <i class="fa-solid fa-eye text-blue-600"></i>
                 <span>Preview Form</span>
             </button>
-            <button type="button" @click="submitForm()" class="px-6 py-2.5 rounded-xl bg-[#8b1818] hover:bg-[#731414] text-white font-black text-xs uppercase tracking-wider transition shadow-md shadow-red-950/20 flex items-center gap-2">
-                <i class="fa-solid fa-floppy-disk text-amber-300"></i>
-                <span>Save Changes</span>
-            </button>
+            @if(!empty($isEvaluationActive))
+                <button type="button" disabled class="px-6 py-2.5 rounded-xl bg-slate-200 text-slate-400 font-black text-xs uppercase tracking-wider cursor-not-allowed border border-slate-300 flex items-center gap-2" title="Saving is disabled while evaluation period is active">
+                    <i class="fa-solid fa-lock text-slate-400"></i>
+                    <span>Locked (Active Evaluation)</span>
+                </button>
+            @else
+                <button type="button" @click="submitForm()" class="px-6 py-2.5 rounded-xl bg-[#8b1818] hover:bg-[#731414] text-white font-black text-xs uppercase tracking-wider transition shadow-md shadow-red-950/20 flex items-center gap-2">
+                    <i class="fa-solid fa-floppy-disk text-amber-300"></i>
+                    <span>Save Changes</span>
+                </button>
+            @endif
         </div>
     </div>
 

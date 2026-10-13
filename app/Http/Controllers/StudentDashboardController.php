@@ -15,17 +15,24 @@ class StudentDashboardController extends Controller
         $user = auth()->user();
 
         // 1. Retrieve Registration Details from users / students / academic_sections
-        $gradeLevel = null;
-        $strand    = null;
-        $section    = null;
-
-        // Check columns directly in the users record
         $gradeLevel = $user->grade_level ?? $user->grade ?? $user->year_level ?? null;
         $strand    = $user->strand ?? $user->track ?? $user->course ?? $user->program ?? null;
         $section    = $user->section ?? $user->section_name ?? null;
+        $sectionId  = $user->section_id ?? null;
+
+        // Check pivot section_student first if user->section_id is empty
+        if (empty($sectionId) && Schema::hasTable('section_student')) {
+            $pivotSecId = DB::table('section_student')
+                ->where('student_id', $user->id)
+                ->orderBy('id', 'desc')
+                ->value('section_id');
+            if ($pivotSecId) {
+                $sectionId = $pivotSecId;
+            }
+        }
 
         // Check separate students / student_profiles table if it exists
-        if ((empty($gradeLevel) || empty($section)) && Schema::hasTable('students')) {
+        if ((empty($gradeLevel) || empty($section) || empty($sectionId)) && Schema::hasTable('students')) {
             $studentProfile = DB::table('students')
                 ->where('user_id', $user->id)
                 ->orWhere('id', $user->id)
@@ -35,19 +42,29 @@ class StudentDashboardController extends Controller
                 $gradeLevel = $gradeLevel ?? $studentProfile->grade_level ?? $studentProfile->grade ?? $studentProfile->year_level ?? null;
                 $strand    = $strand ?? $studentProfile->strand ?? $studentProfile->track ?? $studentProfile->course ?? null;
                 $section    = $section ?? $studentProfile->section ?? $studentProfile->section_name ?? null;
-                if (!empty($studentProfile->section_id) && empty($user->section_id)) {
-                    $user->section_id = $studentProfile->section_id;
-                }
+                $sectionId  = $sectionId ?? $studentProfile->section_id ?? null;
             }
         }
 
-        // Check linked academic_sections table via section_id
-        if ((empty($section) || empty($gradeLevel)) && !empty($user->section_id) && Schema::hasTable('academic_sections')) {
-            $sectionRow = DB::table('academic_sections')->where('id', $user->section_id)->first();
-            if ($sectionRow) {
-                $section    = $section ?? $sectionRow->name ?? $sectionRow->section_name ?? $sectionRow->section ?? null;
-                $gradeLevel = $gradeLevel ?? $sectionRow->grade_level ?? $sectionRow->grade ?? $sectionRow->year_level ?? null;
-                $strand    = $strand ?? $sectionRow->strand ?? $sectionRow->track ?? null;
+        // Check linked academic_sections table via section_id or name
+        $advisor = null;
+        $academicSection = null;
+        if (Schema::hasTable('academic_sections')) {
+            if (!empty($sectionId)) {
+                $academicSection = DB::table('academic_sections')->where('id', $sectionId)->first();
+            } elseif (!empty($section)) {
+                $academicSection = DB::table('academic_sections')->where('section_name', $section)->first();
+            }
+
+            if ($academicSection) {
+                $sectionId  = $academicSection->id;
+                $section    = $academicSection->section_name ?? $section;
+                $gradeLevel = $gradeLevel ?? $academicSection->grade_level ?? null;
+                $strand    = $strand ?? $academicSection->strand ?? null;
+
+                if (!empty($academicSection->advisor_id)) {
+                    $advisor = DB::table('users')->where('id', $academicSection->advisor_id)->first();
+                }
             }
         }
 
@@ -56,197 +73,294 @@ class StudentDashboardController extends Controller
         $student->grade_level = $gradeLevel ?? 'Grade 11';
         $student->strand      = $strand ?? 'Information & Communications Technology';
         $student->section     = $section ?? 'Diamond';
+        $student->section_id  = $sectionId;
 
         // 2. Fetch Class Schedules matching the student's section
-        $schedules = collect();
+        $schedules = $this->fetchStudentSchedules($student);
 
-        if (Schema::hasTable('class_schedules')) {
-            $query = DB::table('class_schedules');
+        // 3. Attendance Statistics (Overall + Per Subject)
+        $attendanceTotal = 0;
+        $attendancePresent = 0;
+        $attendanceLate = 0;
+        $attendanceAbsent = 0;
+        $attendanceRate = 0;
+        $subjectAttendance = collect();
 
-            // Resolve Subjects Table Column Names
-            $subjectNameCol = null;
-            $subjectCodeCol = null;
-            if (Schema::hasTable('subjects')) {
-                foreach (['name', 'subject_name', 'title'] as $col) {
-                    if (Schema::hasColumn('subjects', $col)) {
-                        $subjectNameCol = $col;
-                        break;
-                    }
-                }
-                foreach (['code', 'subject_code'] as $col) {
-                    if (Schema::hasColumn('subjects', $col)) {
-                        $subjectCodeCol = $col;
-                        break;
-                    }
-                }
-                $query->leftJoin('subjects', 'class_schedules.subject_id', '=', 'subjects.id');
-            }
+        if (Schema::hasTable('attendance_logs')) {
+            $attendanceStudentColumn = Schema::hasColumn('attendance_logs', 'student_id') ? 'student_id' : 'user_id';
+            $studentLogs = DB::table('attendance_logs')->where($attendanceStudentColumn, $student->id)->get();
+            $attendanceTotal = $studentLogs->count();
+            
+            $attendancePresent = $studentLogs->filter(fn ($log) => in_array(strtolower((string) $log->status), ['present', 'on-time', 'on time']))->count();
+            $attendanceLate = $studentLogs->filter(fn ($log) => strtolower((string) $log->status) === 'late')->count();
+            $attendanceAbsent = $studentLogs->filter(fn ($log) => in_array(strtolower((string) $log->status), ['absent', 'unexcused', 'excused']))->count();
 
-            // Resolve Academic Sections Table Column Names
-            $secNameCol = null;
-            $secGradeCol = null;
-            $secStrandCol = null;
-            if (Schema::hasTable('academic_sections')) {
-                foreach (['section_name', 'name', 'section', 'title'] as $col) {
-                    if (Schema::hasColumn('academic_sections', $col)) {
-                        $secNameCol = $col;
-                        break;
-                    }
-                }
-                foreach (['grade_level', 'grade', 'year_level'] as $col) {
-                    if (Schema::hasColumn('academic_sections', $col)) {
-                        $secGradeCol = $col;
-                        break;
-                    }
-                }
-                foreach (['strand', 'track_strand', 'track'] as $col) {
-                    if (Schema::hasColumn('academic_sections', $col)) {
-                        $secStrandCol = $col;
-                        break;
-                    }
-                }
-                $query->leftJoin('academic_sections', 'class_schedules.section_id', '=', 'academic_sections.id');
-            }
+            // Overall attendance rate: (Present + Late) / Total
+            $effectiveAttended = $attendancePresent + $attendanceLate;
+            $attendanceRate = $attendanceTotal > 0 ? round(($effectiveAttended / $attendanceTotal) * 100, 1) : 0;
 
-            // Teacher Join
-            if (Schema::hasTable('users') && Schema::hasColumn('class_schedules', 'teacher_id')) {
-                $query->leftJoin('users as teachers', 'class_schedules.teacher_id', '=', 'teachers.id');
-            }
+            // Attendance per Subject & Number of Absents per Subject
+            if (Schema::hasColumn('attendance_logs', 'class_schedule_id') && $schedules->isNotEmpty()) {
+                $scheduleMap = $schedules->keyBy('id');
+                $subjectAttendance = $schedules->map(function ($sched) use ($studentLogs) {
+                    $schedLogs = $studentLogs->where('class_schedule_id', $sched->id);
+                    $subTotal = $schedLogs->count();
+                    $subPresent = $schedLogs->filter(fn ($l) => in_array(strtolower((string) $l->status), ['present', 'on-time', 'on time', 'late']))->count();
+                    $subAbsent = $schedLogs->filter(fn ($l) => in_array(strtolower((string) $l->status), ['absent', 'unexcused', 'excused']))->count();
+                    $subRate = $subTotal > 0 ? round(($subPresent / $subTotal) * 100, 1) : null;
 
-            // Select Columns
-            $selects = [
-                'class_schedules.id',
-                'class_schedules.day as day',
-                'class_schedules.start_time',
-                'class_schedules.end_time',
-            ];
-
-            $selects[] = $subjectNameCol ? "subjects.{$subjectNameCol} as subject_name" : DB::raw("'Unassigned Subject' as subject_name");
-            $selects[] = $subjectCodeCol ? "subjects.{$subjectCodeCol} as subject_code" : DB::raw("'NO-CODE' as subject_code");
-            $selects[] = $secNameCol ? "academic_sections.{$secNameCol} as section_name" : DB::raw("'Assigned Section' as section_name");
-
-            if (Schema::hasTable('users')) {
-                $selects[] = 'teachers.first_name as teacher_first_name';
-                $selects[] = 'teachers.last_name as teacher_last_name';
-                $selects[] = 'teachers.email as teacher_email';
-            }
-
-            $query->select($selects);
-
-            // Filter Schedules by Student Section ID or Name
-            if (!empty($student->section_id) && Schema::hasColumn('class_schedules', 'section_id')) {
-                $query->where('class_schedules.section_id', $student->section_id);
+                    return (object) [
+                        'schedule_id'  => $sched->id,
+                        'subject_name' => $sched->subject_name,
+                        'subject_code' => $sched->subject_code,
+                        'teacher_name' => $sched->teacher ? $sched->teacher->first_name . ' ' . $sched->teacher->last_name : 'TBA',
+                        'time_slot'    => $sched->time_slot,
+                        'day'          => $sched->day,
+                        'present'      => $subPresent,
+                        'absent'       => $subAbsent,
+                        'total'        => $subTotal,
+                        'rate'         => $subRate,
+                    ];
+                });
             } else {
-                if (!empty($student->section) && $secNameCol) {
-                    $query->where("academic_sections.{$secNameCol}", 'like', '%' . $student->section . '%');
+                $subjectAttendance = $schedules->map(fn ($sched) => (object) [
+                    'schedule_id'  => $sched->id,
+                    'subject_name' => $sched->subject_name,
+                    'subject_code' => $sched->subject_code,
+                    'teacher_name' => $sched->teacher ? $sched->teacher->first_name . ' ' . $sched->teacher->last_name : 'TBA',
+                    'time_slot'    => $sched->time_slot,
+                    'day'          => $sched->day,
+                    'present'      => 0,
+                    'absent'       => 0,
+                    'total'        => 0,
+                    'rate'         => null,
+                ]);
+            }
+        }
+
+        // 4. Faculty Evaluation Status Check
+        $activeCycle = Schema::hasTable('evaluation_cycles')
+            ? DB::table('evaluation_cycles')->where('status', 'active')->where('is_active', 1)->first()
+            : null;
+
+        $isEvaluationOpen = (bool) $activeCycle || Cache::get('evaluations_open', false);
+
+        // Check if student has pending evaluations
+        $assignedTeachers = $schedules->pluck('teacher')->filter()->unique('id')->values();
+        $assignedTeacherIds = $assignedTeachers->pluck('id')->toArray();
+
+        // If no direct subject teachers mapped, fallback to all faculty
+        if (empty($assignedTeacherIds)) {
+            $assignedTeacherIds = User::where('role_id', 2)->pluck('id')->toArray();
+        }
+
+        $evaluatedTeacherIds = [];
+        if ($activeCycle && Schema::hasTable('evaluation_submissions')) {
+            $evaluatedTeacherIds = DB::table('evaluation_submissions')
+                ->where('form_type', 'student')
+                ->where('student_id', $user->id)
+                ->where('evaluation_cycle_id', $activeCycle->id)
+                ->pluck('teacher_id')
+                ->toArray();
+        }
+
+        $pendingTeacherIds = array_diff($assignedTeacherIds, $evaluatedTeacherIds);
+        $totalToEvaluate = count($assignedTeacherIds);
+        $totalEvaluated = count(array_intersect($assignedTeacherIds, $evaluatedTeacherIds));
+        $allEvaluatedDone = ($totalToEvaluate > 0 && empty($pendingTeacherIds));
+
+        // Time slots for timetable grid
+        $weekdays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+        $timeSlots = [
+            '07:00 AM - 08:00 AM',
+            '08:00 AM - 09:00 AM',
+            '09:00 AM - 10:00 AM',
+            '10:00 AM - 11:00 AM',
+            '11:00 AM - 12:00 PM',
+            '12:00 PM - 01:00 PM',
+            '01:00 PM - 02:00 PM',
+            '02:00 PM - 03:00 PM',
+            '03:00 PM - 04:00 PM',
+            '04:00 PM - 05:00 PM',
+        ];
+
+        return view('student.dashboard', compact(
+            'student', 'advisor', 'academicSection', 'schedules',
+            'attendanceTotal', 'attendancePresent', 'attendanceLate', 'attendanceAbsent', 'attendanceRate', 'subjectAttendance',
+            'isEvaluationOpen', 'activeCycle', 'totalToEvaluate', 'totalEvaluated', 'allEvaluatedDone',
+            'weekdays', 'timeSlots'
+        ));
+    }
+
+    public function schedules()
+    {
+        $user = auth()->user();
+        $student = clone $user;
+        $student->grade_level = $user->grade_level ?? 'Grade 11';
+        $student->strand      = $user->strand ?? 'Information & Communications Technology';
+        $student->section     = $user->section ?? 'Diamond';
+        $student->section_id  = $user->section_id ?? null;
+
+        if (empty($student->section_id) && Schema::hasTable('section_student')) {
+            $student->section_id = DB::table('section_student')
+                ->where('student_id', $user->id)
+                ->orderBy('id', 'desc')
+                ->value('section_id');
+        }
+
+        $advisor = null;
+        if (Schema::hasTable('academic_sections')) {
+            $academicSection = !empty($student->section_id)
+                ? DB::table('academic_sections')->where('id', $student->section_id)->first()
+                : DB::table('academic_sections')->where('section_name', $student->section)->first();
+
+            if ($academicSection) {
+                $student->section = $academicSection->section_name;
+                $student->section_id = $academicSection->id;
+                if (!empty($academicSection->advisor_id)) {
+                    $advisor = DB::table('users')->where('id', $academicSection->advisor_id)->first();
                 }
-                if (!empty($student->grade_level) && $secGradeCol) {
-                    $query->where("academic_sections.{$secGradeCol}", $student->grade_level);
+            }
+        }
+
+        $schedules = $this->fetchStudentSchedules($student);
+
+        $weekdays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+        $timeSlots = [
+            '07:00 AM - 08:00 AM',
+            '08:00 AM - 09:00 AM',
+            '09:00 AM - 10:00 AM',
+            '10:00 AM - 11:00 AM',
+            '11:00 AM - 12:00 PM',
+            '12:00 PM - 01:00 PM',
+            '01:00 PM - 02:00 PM',
+            '02:00 PM - 03:00 PM',
+            '03:00 PM - 04:00 PM',
+            '04:00 PM - 05:00 PM',
+        ];
+
+        return view('student.dashboard', compact(
+            'student', 'advisor', 'schedules', 'weekdays', 'timeSlots'
+        ));
+    }
+
+    public function attendance()
+    {
+        $user = auth()->user();
+        $student = clone $user;
+        $student->grade_level = $user->grade_level ?? 'Grade 11';
+        $student->section     = $user->section ?? 'Diamond';
+
+        $studentLogs = collect();
+        $attendanceTotal = 0;
+        $attendancePresent = 0;
+        $attendanceLate = 0;
+        $attendanceAbsent = 0;
+        $attendanceRate = 0;
+
+        if (Schema::hasTable('attendance_logs')) {
+            $attendanceStudentColumn = Schema::hasColumn('attendance_logs', 'student_id') ? 'student_id' : 'user_id';
+            $studentLogs = DB::table('attendance_logs')
+                ->where($attendanceStudentColumn, $student->id)
+                ->orderBy('attendance_date', 'desc')
+                ->orderBy('created_at', 'desc')
+                ->get();
+
+            $attendanceTotal = $studentLogs->count();
+            $attendancePresent = $studentLogs->filter(fn ($log) => in_array(strtolower((string) $log->status), ['present', 'on-time', 'on time']))->count();
+            $attendanceLate = $studentLogs->filter(fn ($log) => strtolower((string) $log->status) === 'late')->count();
+            $attendanceAbsent = $studentLogs->filter(fn ($log) => in_array(strtolower((string) $log->status), ['absent', 'unexcused', 'excused']))->count();
+            $attendanceRate = $attendanceTotal > 0 ? round((($attendancePresent + $attendanceLate) / $attendanceTotal) * 100, 1) : 0;
+        }
+
+        return view('student.attendance', compact(
+            'student', 'studentLogs', 'attendanceTotal', 'attendancePresent', 'attendanceLate', 'attendanceAbsent', 'attendanceRate'
+        ));
+    }
+
+    private function fetchStudentSchedules($student)
+    {
+        $schedules = collect();
+        if (!Schema::hasTable('class_schedules')) {
+            return $schedules;
+        }
+
+        $query = DB::table('class_schedules');
+
+        // Subjects join
+        if (Schema::hasTable('subjects')) {
+            $query->leftJoin('subjects', 'class_schedules.subject_id', '=', 'subjects.id');
+        }
+
+        // Academic sections join
+        if (Schema::hasTable('academic_sections')) {
+            $query->leftJoin('academic_sections', 'class_schedules.section_id', '=', 'academic_sections.id');
+        }
+
+        // Teachers join
+        if (Schema::hasTable('users') && Schema::hasColumn('class_schedules', 'teacher_id')) {
+            $query->leftJoin('users as teachers', 'class_schedules.teacher_id', '=', 'teachers.id');
+        }
+
+        $query->select([
+            'class_schedules.id',
+            'class_schedules.section_id',
+            'class_schedules.subject_id',
+            'class_schedules.teacher_id',
+            'class_schedules.day',
+            'class_schedules.start_time',
+            'class_schedules.end_time',
+            DB::raw("COALESCE(subjects.name, class_schedules.subject_name, 'Unassigned Subject') as subject_name"),
+            DB::raw("COALESCE(subjects.code, class_schedules.subject_code, 'NO-CODE') as subject_code"),
+            DB::raw("COALESCE(academic_sections.section_name, class_schedules.section, 'Section') as section_name"),
+            'teachers.first_name as teacher_first_name',
+            'teachers.last_name as teacher_last_name',
+            'teachers.email as teacher_email',
+        ]);
+
+        // Filter: By Section ID first, fallback to section name
+        if (!empty($student->section_id)) {
+            $query->where(function ($q) use ($student) {
+                $q->where('class_schedules.section_id', $student->section_id)
+                  ->orWhere('class_schedules.section', $student->section);
+            });
+        } elseif (!empty($student->section)) {
+            $query->where(function ($q) use ($student) {
+                $q->where('class_schedules.section', $student->section);
+                if (Schema::hasTable('academic_sections')) {
+                    $q->orWhere('academic_sections.section_name', $student->section);
                 }
-            }
-
-            // Sort by day and time
-            if (Schema::hasColumn('class_schedules', 'day_of_week')) {
-                $query->orderByRaw("
-                    CASE class_schedules.day_of_week 
-                        WHEN 'Monday' THEN 1 
-                        WHEN 'Tuesday' THEN 2 
-                        WHEN 'Wednesday' THEN 3 
-                        WHEN 'Thursday' THEN 4 
-                        WHEN 'Friday' THEN 5 
-                        WHEN 'Saturday' THEN 6 
-                        WHEN 'Sunday' THEN 7 
-                        WHEN 'Mon / Wed' THEN 8 
-                        WHEN 'Tue / Thu' THEN 9 
-                        ELSE 10 
-                    END ASC
-                ");
-            }
-            if (Schema::hasColumn('class_schedules', 'start_time')) {
-                $query->orderBy('class_schedules.start_time', 'asc');
-            }
-
-            $schedules = $query->get()->map(function ($schedule) {
-                $schedule->teacher = !empty($schedule->teacher_first_name) ? (object)[
-                    'first_name' => $schedule->teacher_first_name,
-                    'last_name'  => $schedule->teacher_last_name,
-                    'email'      => $schedule->teacher_email,
-                ] : null;
-
-                $schedule->time_slot = (!empty($schedule->start_time) && !empty($schedule->end_time))
-                    ? date('g:i A', strtotime($schedule->start_time)) . ' - ' . date('g:i A', strtotime($schedule->end_time))
-                    : 'Schedule TBA';
-
-                return $schedule;
             });
         }
 
-        // Attendance summary for the dashboard.
-        $attendanceTotal = 0;
-        $attendancePresent = 0;
-        $attendanceRate = 0;
-        $subjectAttendance = collect();
-        if (Schema::hasTable('attendance_logs')) {
-            $attendanceStudentColumn = Schema::hasColumn('attendance_logs', 'student_id') ? 'student_id' : 'user_id';
-            $attendanceDateColumn = Schema::hasColumn('attendance_logs', 'attendance_date')
-                ? 'attendance_date'
-                : (Schema::hasColumn('attendance_logs', 'scanned_at') ? 'scanned_at' : 'created_at');
-            $studentLogs = DB::table('attendance_logs')->where($attendanceStudentColumn, $student->id)->get();
-            $attendanceTotal = $studentLogs->count();
-            $attendancePresent = $studentLogs->filter(fn ($log) => in_array(strtolower((string) $log->status), ['present', 'on-time', 'on time', 'late']))->count();
-            $attendanceRate = $attendanceTotal > 0 ? round(($attendancePresent / $attendanceTotal) * 100, 1) : 0;
+        // Sort by day of week then time
+        $query->orderByRaw("
+            CASE LOWER(TRIM(class_schedules.day))
+                WHEN 'monday' THEN 1
+                WHEN 'tuesday' THEN 2
+                WHEN 'wednesday' THEN 3
+                WHEN 'thursday' THEN 4
+                WHEN 'friday' THEN 5
+                WHEN 'saturday' THEN 6
+                WHEN 'sunday' THEN 7
+                ELSE 8
+            END ASC
+        ")->orderBy('class_schedules.start_time', 'asc');
 
-            if (Schema::hasColumn('attendance_logs', 'class_schedule_id') && $schedules->isNotEmpty()) {
-                $scheduleNames = $schedules->keyBy('id')->map(fn ($schedule) => $schedule->subject_name ?: 'Unassigned Subject');
-                $subjectAttendance = $studentLogs
-                    ->filter(fn ($log) => !empty($log->class_schedule_id) && $scheduleNames->has($log->class_schedule_id))
-                    ->groupBy('class_schedule_id')
-                    ->map(function ($logs, $scheduleId) use ($scheduleNames) {
-                        $total = $logs->count();
-                        $present = $logs->filter(fn ($log) => in_array(strtolower((string) $log->status), ['present', 'on-time', 'on time', 'late']))->count();
-                        return (object) [
-                            'subject_name' => $scheduleNames->get($scheduleId),
-                            'present' => $present,
-                            'total' => $total,
-                            'rate' => $total > 0 ? round(($present / $total) * 100, 1) : 0,
-                        ];
-                    })->values();
-            }
+        return $query->get()->map(function ($s) {
+            $s->teacher = !empty($s->teacher_first_name) ? (object)[
+                'id'         => $s->teacher_id,
+                'first_name' => $s->teacher_first_name,
+                'last_name'  => $s->teacher_last_name,
+                'email'      => $s->teacher_email,
+            ] : null;
 
-            if ($subjectAttendance->isEmpty() && $schedules->isNotEmpty()) {
-                $subjectAttendance = $schedules->unique('subject_name')->map(fn ($schedule) => (object) [
-                    'subject_name' => $schedule->subject_name ?: 'Unassigned Subject',
-                    'present' => 0,
-                    'total' => 0,
-                    'rate' => 0,
-                ])->values();
-            }
-        }
+            $s->time_slot = (!empty($s->start_time) && !empty($s->end_time))
+                ? date('g:i A', strtotime($s->start_time)) . ' - ' . date('g:i A', strtotime($s->end_time))
+                : 'Schedule TBA';
 
-        // 3. Faculty Evaluation Status Check (Safe & Guarded)
-        $isEvaluationOpen = Cache::get('evaluations_open', false);
-        $activeCycle = null;
-        
-        if (Schema::hasTable('evaluation_cycles')) {
-            $activeCycle = DB::table('evaluation_cycles')
-                ->where('status', 'active')
-                ->where('is_active', 1)
-                ->first();
-            
-            if ($activeCycle) {
-                $isEvaluationOpen = true;
-            }
-        }
-
-        if (!$isEvaluationOpen && Schema::hasTable('academic_periods') && Schema::hasColumn('academic_periods', 'status')) {
-            $periodStatus = DB::table('academic_periods')->where('is_active', 1)->value('status');
-            $isEvaluationOpen = in_array(strtolower((string)$periodStatus), ['open', 'active', '1', 'true']);
-        }
-
-        return view('student.dashboard', compact(
-            'student', 'schedules', 'isEvaluationOpen', 'activeCycle',
-            'attendanceTotal', 'attendancePresent', 'attendanceRate', 'subjectAttendance'
-        ));
+            return $s;
+        });
     }
 
     // ==========================================
@@ -355,6 +469,7 @@ class StudentDashboardController extends Controller
             'average_score'       => $averageScore,
             'status'              => 'SUBMITTED',
             'comments'            => $request->input('comments'),
+            'answers'             => json_encode($scores),
             'created_at'          => now(),
             'updated_at'          => now(),
         ]);

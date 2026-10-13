@@ -1,4 +1,4 @@
-﻿@extends('layouts.app')
+@extends('layouts.app')
 
 @section('title', 'Faculty Evaluation Management - SIATRACK')
 
@@ -195,7 +195,7 @@
                         <i class="fa-solid fa-chevron-right text-xs text-slate-400 group-hover:text-[#8b1818] transition"></i>
                     </button>
 
-                    <a href="#" class="w-full py-3.5 px-5 bg-[#8b1818] hover:bg-[#731414] text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-sm transition flex items-center justify-center gap-2.5">
+                    <a href="{{ route('admin.reports.evaluation') }}" class="w-full py-3.5 px-5 bg-[#8b1818] hover:bg-[#731414] text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-sm transition flex items-center justify-center gap-2.5">
                         <i class="fa-solid fa-file-arrow-down text-sm text-amber-300"></i>
                         <span>Export Full Report (CSV / PDF)</span>
                     </a>

@@ -25,10 +25,6 @@
         </div>
 
         <div class="flex flex-wrap items-center gap-2.5 shrink-0">
-            <button @click="periodModal = true" class="px-3.5 py-2.5 rounded-xl bg-[#8b1818] hover:bg-[#731414] text-white font-black text-xs uppercase tracking-wider transition shadow-md shadow-red-950/20 flex items-center gap-2">
-                <i class="fa-solid fa-play text-amber-300 text-xs"></i>
-                <span>Start Evaluation</span>
-            </button>
             <a href="{{ route('admin.evaluations.history') }}" class="px-3.5 py-2.5 rounded-xl bg-white hover:bg-slate-50 text-slate-700 font-black text-xs uppercase tracking-wider transition border border-slate-300 shadow-2xs flex items-center gap-2">
                 <i class="fa-solid fa-clock-rotate-left text-slate-500 text-xs"></i>
                 <span>History</span>
@@ -165,10 +161,17 @@
                         <span>{{ $versionCounts['principal'] ?? 0 }}</span>
                     </div>
                 </div>
-                <a href="{{ route('admin.evaluations.forms.edit', ['type' => 'principal']) }}" class="w-full py-2.5 px-4 rounded-xl bg-[#8b1818] hover:bg-[#731414] text-white font-black text-xs uppercase tracking-wider text-center transition shadow-xs flex items-center justify-center gap-2">
-                    <i class="fa-solid fa-[#8b1818] fa-pen-to-square text-amber-300"></i>
-                    <span>Edit Form</span>
-                </a>
+                @if(!empty($isEvaluationActive))
+                    <div class="w-full py-2.5 px-4 rounded-xl bg-slate-100 text-slate-400 font-black text-xs uppercase tracking-wider text-center cursor-not-allowed border border-slate-200 flex items-center justify-center gap-2" title="Form editing is locked during an active evaluation cycle">
+                        <i class="fa-solid fa-lock text-slate-400"></i>
+                        <span>Locked (Evaluation Active)</span>
+                    </div>
+                @else
+                    <a href="{{ route('admin.evaluations.forms.edit', ['type' => 'principal']) }}" class="w-full py-2.5 px-4 rounded-xl bg-[#8b1818] hover:bg-[#731414] text-white font-black text-xs uppercase tracking-wider text-center transition shadow-xs flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-[#8b1818] fa-pen-to-square text-amber-300"></i>
+                        <span>Edit Form</span>
+                    </a>
+                @endif
             </div>
 
             <!-- 2. Peer Evaluation Form Card -->
@@ -190,10 +193,17 @@
                         <span>{{ $versionCounts['peer'] ?? 0 }}</span>
                     </div>
                 </div>
-                <a href="{{ route('admin.evaluations.forms.edit', ['type' => 'peer']) }}" class="w-full py-2.5 px-4 rounded-xl bg-[#8b1818] hover:bg-[#731414] text-white font-black text-xs uppercase tracking-wider text-center transition shadow-xs flex items-center justify-center gap-2">
-                    <i class="fa-solid fa-[#8b1818] fa-pen-to-square text-amber-300"></i>
-                    <span>Edit Form</span>
-                </a>
+                @if(!empty($isEvaluationActive))
+                    <div class="w-full py-2.5 px-4 rounded-xl bg-slate-100 text-slate-400 font-black text-xs uppercase tracking-wider text-center cursor-not-allowed border border-slate-200 flex items-center justify-center gap-2" title="Form editing is locked during an active evaluation cycle">
+                        <i class="fa-solid fa-lock text-slate-400"></i>
+                        <span>Locked (Evaluation Active)</span>
+                    </div>
+                @else
+                    <a href="{{ route('admin.evaluations.forms.edit', ['type' => 'peer']) }}" class="w-full py-2.5 px-4 rounded-xl bg-[#8b1818] hover:bg-[#731414] text-white font-black text-xs uppercase tracking-wider text-center transition shadow-xs flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-[#8b1818] fa-pen-to-square text-amber-300"></i>
+                        <span>Edit Form</span>
+                    </a>
+                @endif
             </div>
 
             <!-- 3. Student Evaluation Form Card -->
@@ -215,10 +225,17 @@
                         <span>{{ $versionCounts['student'] ?? 0 }}</span>
                     </div>
                 </div>
-                <a href="{{ route('admin.evaluations.forms.edit', ['type' => 'student']) }}" class="w-full py-2.5 px-4 rounded-xl bg-[#8b1818] hover:bg-[#731414] text-white font-black text-xs uppercase tracking-wider text-center transition shadow-xs flex items-center justify-center gap-2">
-                    <i class="fa-solid fa-[#8b1818] fa-pen-to-square text-amber-300"></i>
-                    <span>Edit Form</span>
-                </a>
+                @if(!empty($isEvaluationActive))
+                    <div class="w-full py-2.5 px-4 rounded-xl bg-slate-100 text-slate-400 font-black text-xs uppercase tracking-wider text-center cursor-not-allowed border border-slate-200 flex items-center justify-center gap-2" title="Form editing is locked during an active evaluation cycle">
+                        <i class="fa-solid fa-lock text-slate-400"></i>
+                        <span>Locked (Evaluation Active)</span>
+                    </div>
+                @else
+                    <a href="{{ route('admin.evaluations.forms.edit', ['type' => 'student']) }}" class="w-full py-2.5 px-4 rounded-xl bg-[#8b1818] hover:bg-[#731414] text-white font-black text-xs uppercase tracking-wider text-center transition shadow-xs flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-[#8b1818] fa-pen-to-square text-amber-300"></i>
+                        <span>Edit Form</span>
+                    </a>
+                @endif
             </div>
 
             <!-- 4. Self Evaluation Form Card -->
@@ -240,10 +257,17 @@
                         <span>{{ $versionCounts['self'] ?? 0 }}</span>
                     </div>
                 </div>
-                <a href="{{ route('admin.evaluations.forms.edit', ['type' => 'self']) }}" class="w-full py-2.5 px-4 rounded-xl bg-[#8b1818] hover:bg-[#731414] text-white font-black text-xs uppercase tracking-wider text-center transition shadow-xs flex items-center justify-center gap-2">
-                    <i class="fa-solid fa-[#8b1818] fa-pen-to-square text-amber-300"></i>
-                    <span>Edit Form</span>
-                </a>
+                @if(!empty($isEvaluationActive))
+                    <div class="w-full py-2.5 px-4 rounded-xl bg-slate-100 text-slate-400 font-black text-xs uppercase tracking-wider text-center cursor-not-allowed border border-slate-200 flex items-center justify-center gap-2" title="Form editing is locked during an active evaluation cycle">
+                        <i class="fa-solid fa-lock text-slate-400"></i>
+                        <span>Locked (Evaluation Active)</span>
+                    </div>
+                @else
+                    <a href="{{ route('admin.evaluations.forms.edit', ['type' => 'self']) }}" class="w-full py-2.5 px-4 rounded-xl bg-[#8b1818] hover:bg-[#731414] text-white font-black text-xs uppercase tracking-wider text-center transition shadow-xs flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-[#8b1818] fa-pen-to-square text-amber-300"></i>
+                        <span>Edit Form</span>
+                    </a>
+                @endif
             </div>
 
         </div>
@@ -276,10 +300,17 @@
                 </a>
             </div>
 
-            <a href="{{ route('admin.evaluations.forms.edit', ['type' => $selectedType]) }}" class="px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-black text-white font-black text-xs uppercase tracking-wider transition flex items-center gap-2 shrink-0">
-                <i class="fa-solid fa-pen-to-square text-amber-300"></i>
-                <span>Edit {{ strtoupper($selectedType) }} Questionnaire Structure</span>
-            </a>
+            @if(!empty($isEvaluationActive))
+                <div class="px-4 py-2.5 rounded-xl bg-slate-100 text-slate-400 font-black text-xs uppercase tracking-wider border border-slate-200 flex items-center gap-2 shrink-0 cursor-not-allowed" title="Editing is locked during active evaluation">
+                    <i class="fa-solid fa-lock text-slate-400"></i>
+                    <span>Form Locked (Active Cycle)</span>
+                </div>
+            @else
+                <a href="{{ route('admin.evaluations.forms.edit', ['type' => $selectedType]) }}" class="px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-black text-white font-black text-xs uppercase tracking-wider transition flex items-center gap-2 shrink-0">
+                    <i class="fa-solid fa-pen-to-square text-amber-300"></i>
+                    <span>Edit {{ strtoupper($selectedType) }} Questionnaire Structure</span>
+                </a>
+            @endif
         </div>
 
         <!-- Form Header Preview -->

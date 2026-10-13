@@ -55,13 +55,25 @@ class SmsGatewayService
         try {
             $config = $this->getConfig();
             if (blank($config['url']) || blank($config['login']) || blank($config['password'])) {
+                Log::warning('SMS API connection test skipped: incomplete configuration.', [
+                    'has_url' => filled($config['url']),
+                    'has_login' => filled($config['login']),
+                    'has_password' => filled($config['password']),
+                ]);
                 return $this->checked(false, 'SMS API is not configured. Open Configure SMS API.', (int) round((microtime(true) - $started) * 1000));
             }
-            $response = $this->client($config)->post($this->apiUrl($config['url'], '/3rdparty/v1/auth/token'), [
+            $endpoint = $this->apiUrl($config['url'], '/3rdparty/v1/auth/token');
+            $response = $this->client($config)->post($endpoint, [
                 'scopes' => ['messages:send'],
                 'ttl' => 60,
             ]);
             $ms = (int) round((microtime(true) - $started) * 1000);
+            Log::info('SMS API connection test response received.', [
+                'endpoint' => $endpoint,
+                'status_code' => $response->status(),
+                'latency_ms' => $ms,
+                'response_body' => $this->logResponseBody($response->body()),
+            ]);
             if (in_array($response->status(), [401, 403], true)) {
                 return $this->checked(false, 'SMS gateway authentication failed. Verify the API login and password in Configure SMS API.', $ms);
             }
@@ -73,7 +85,12 @@ class SmsGatewayService
         } catch (Throwable $exception) {
             $message = strtolower($exception->getMessage());
             $reason = str_contains($message, 'timed out') ? 'Connection timeout' : (str_contains($message, 'resolve') ? 'DNS or host failure' : (str_contains($message, 'refused') ? 'Connection refused' : 'Unable to connect to the configured SMS gateway.'));
-            Log::warning('SMS gateway connection failed.', ['reason' => $reason]);
+            Log::error('SMS API connection test failed.', [
+                'reason' => $reason,
+                'exception' => $exception::class,
+                'error' => $exception->getMessage(),
+                'latency_ms' => (int) round((microtime(true) - $started) * 1000),
+            ]);
             return $this->checked(false, $reason, (int) round((microtime(true) - $started) * 1000));
         }
     }
@@ -81,23 +98,64 @@ class SmsGatewayService
     public function sendSms(string $number, string $message): bool
     {
         $config = $this->getConfig();
-        if ($config['validate_numbers'] && !preg_match('/^\+?[0-9][0-9\s().-]{6,20}$/', $number)) return false;
+        if ($config['validate_numbers'] && !preg_match('/^\+?[0-9][0-9\s().-]{6,20}$/', $number)) {
+            Log::warning('SMS API dispatch skipped: invalid phone number.', [
+                'phone_number' => $this->maskPhoneNumber($number),
+            ]);
+            return false;
+        }
+
+        $started = microtime(true);
+        $tokenEndpoint = $this->apiUrl($config['url'], '/3rdparty/v1/auth/token');
+        $messageEndpoint = $this->apiUrl($config['url'], '/3rdparty/v1/messages');
+        Log::info('SMS API dispatch started.', [
+            'endpoint' => $messageEndpoint,
+            'token_endpoint' => $tokenEndpoint,
+            'phone_number' => $this->maskPhoneNumber($number),
+            'message_length' => mb_strlen($message),
+        ]);
+
         try {
-            $tokenResponse = $this->client($config)->post($this->apiUrl($config['url'], '/3rdparty/v1/auth/token'), [
+            $tokenResponse = $this->client($config)->post($tokenEndpoint, [
                 'scopes' => ['messages:send'],
                 'ttl' => 60,
             ]);
             $token = $tokenResponse->json('accessToken') ?? $tokenResponse->json('access_token');
-            if ($tokenResponse->status() !== 201 || blank($token)) return false;
+            if ($tokenResponse->status() !== 201 || blank($token)) {
+                Log::error('SMS API token request failed.', [
+                    'endpoint' => $tokenEndpoint,
+                    'status_code' => $tokenResponse->status(),
+                    'latency_ms' => (int) round((microtime(true) - $started) * 1000),
+                    'response_body' => $this->logResponseBody($tokenResponse->body()),
+                ]);
+                return false;
+            }
 
-            return Http::withoutVerifying()->acceptJson()->timeout($config['timeout'])
+            $response = Http::withoutVerifying()->acceptJson()->timeout($config['timeout'])
                 ->withToken($token)
-                ->post($this->apiUrl($config['url'], '/3rdparty/v1/messages'), [
+                ->post($messageEndpoint, [
                     'phoneNumbers' => [$number],
                     'message' => $message,
-                ])->successful();
-        } catch (Throwable) {
-            Log::warning('SMS gateway send failed.');
+                ]);
+            $success = $response->successful();
+            Log::log($success ? 'info' : 'error', $success
+                ? 'SMS API accepted dispatch.'
+                : 'SMS API rejected dispatch.', [
+                    'endpoint' => $messageEndpoint,
+                    'status_code' => $response->status(),
+                    'latency_ms' => (int) round((microtime(true) - $started) * 1000),
+                    'response_body' => $this->logResponseBody($response->body()),
+                ]);
+
+            return $success;
+        } catch (Throwable $exception) {
+            Log::error('SMS API dispatch failed with exception.', [
+                'endpoint' => $messageEndpoint,
+                'phone_number' => $this->maskPhoneNumber($number),
+                'latency_ms' => (int) round((microtime(true) - $started) * 1000),
+                'exception' => $exception::class,
+                'error' => $exception->getMessage(),
+            ]);
             return false;
         }
     }
@@ -148,4 +206,30 @@ class SmsGatewayService
     }
 
     private function boolean(mixed $value): bool { return filter_var($value, FILTER_VALIDATE_BOOLEAN); }
+
+    private function maskPhoneNumber(?string $number): string
+    {
+        $number = (string) $number;
+
+        return strlen($number) > 4
+            ? str_repeat('*', max(0, strlen($number) - 4)) . substr($number, -4)
+            : $number;
+    }
+
+    private function logResponseBody(string $body): string
+    {
+        $body = trim($body);
+
+        $decoded = json_decode($body, true);
+        if (is_array($decoded)) {
+            foreach (['accessToken', 'access_token', 'refreshToken', 'refresh_token', 'token', 'password'] as $secretKey) {
+                if (array_key_exists($secretKey, $decoded)) {
+                    $decoded[$secretKey] = '[redacted]';
+                }
+            }
+            $body = (string) json_encode($decoded);
+        }
+
+        return mb_strlen($body) > 1000 ? mb_substr($body, 0, 1000) . '...[truncated]' : $body;
+    }
 }

@@ -6,9 +6,11 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\TeacherDashboardController;
+use App\Http\Controllers\TeacherEvaluationResultController;
 use App\Http\Controllers\StudentDashboardController;
 use App\Http\Controllers\NfcAttendanceController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\MessageApiController;
 
 // Admin & Management Controllers
 use App\Http\Controllers\Admin\AdminDashboardController;
@@ -32,14 +34,9 @@ use App\Http\Controllers\Admin\FacultyEvaluationController;
 |--------------------------------------------------------------------------
 */
 Route::middleware('guest')->group(function () {
-    Route::get('/', [LoginController::class, 'showLoginForm'])->name('welcome');
+    Route::redirect('/', '/login')->name('welcome');
     Route::get('/login', [LoginController::class, 'showLoginForm'])->name('login');
     Route::post('/login', [LoginController::class, 'login'])->name('login.submit');
-
-    Route::get('/evaluations', [AdminEvaluationController::class, 'index'])->name('evaluations');
-    Route::post('/evaluations/toggle-status', [AdminEvaluationController::class, 'toggleStatus'])->name('evaluations.toggle');
-    Route::get('/evaluations/periods', [AdminEvaluationController::class, 'periods'])->name('evaluations.periods');
-    Route::get('/evaluations/results', [AdminEvaluationController::class, 'results'])->name('evaluations.results');
 });
 
 /*
@@ -58,6 +55,19 @@ Route::get('/api/nfc/latest', [AdminNfcController::class, 'getLatestTap']);
 |--------------------------------------------------------------------------
 */
 Route::middleware(['auth', 'verified'])->group(function () {
+    Route::get('/evaluations', [AdminEvaluationController::class, 'index'])->name('evaluations');
+    Route::post('/evaluations/toggle-status', [AdminEvaluationController::class, 'toggleStatus'])->name('evaluations.toggle');
+    Route::get('/evaluations/periods', [AdminEvaluationController::class, 'periods'])->name('evaluations.periods');
+    Route::get('/evaluations/results', [AdminEvaluationController::class, 'results'])->name('evaluations.results');
+
+    Route::middleware(['role:attendance'])->group(function () {
+        Route::get('/attendance', fn () => redirect()->route('attendance.start'))->name('attendance.scan');
+        Route::get('/attendance/start', [NfcAttendanceController::class, 'attendanceStart'])->name('attendance.start');
+        Route::post('/attendance/start', [NfcAttendanceController::class, 'startAttendance'])->name('attendance.start.submit');
+        Route::post('/attendance/end', [NfcAttendanceController::class, 'endAttendance'])->name('attendance.end');
+        Route::get('/attendance/live', [NfcAttendanceController::class, 'scanPage'])->name('attendance.live');
+        Route::post('/attendance/tap', [NfcAttendanceController::class, 'handleTap'])->name('attendance.tap');
+    });
     
     Route::get('/dashboard', function () {
         $user = auth()->user();
@@ -79,6 +89,17 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     /*
     |--------------------------------------------------------------------------
+    | SMS Gateway & Notification Endpoints
+    |--------------------------------------------------------------------------
+    */
+    Route::get('/system/status/sms', [MessageApiController::class, 'pingGateway'])->name('sms.ping');
+    Route::post('/send-sms', [MessageApiController::class, 'sendSms'])->name('sms.send');
+    Route::get('/outbound-messages', [MessageApiController::class, 'history'])->name('sms.history');
+    Route::get('/outbound-messages/{id}', [MessageApiController::class, 'show'])->name('sms.show');
+    Route::get('/sms/check-rate', [MessageApiController::class, 'checkRateLimit'])->name('sms.check-rate');
+
+    /*
+    |--------------------------------------------------------------------------
     | Admin Routes
     |--------------------------------------------------------------------------
     */
@@ -87,8 +108,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/students/analytics', [DashboardController::class, 'studentAnalytics'])->name('students.analytics');
         Route::get('/analytics/attendance-rate', [AdminDashboardController::class, 'attendanceRate'])->name('attendance.rate');
 
-        Route::get('/sms-sent-today', [AdminSmsController::class, 'index'])->name('sms.sent-today');
-        Route::post('/sms/update-template', [AdminSmsController::class, 'updateTemplate'])->name('sms.update-template');
+        Route::get('/message', [MessageApiController::class, 'adminIndex'])->name('message');
+        Route::get('/messages', [MessageApiController::class, 'adminIndex'])->name('messages');
+        Route::redirect('/sms-sent-today', '/admin/message')->name('sms.sent-today');
+        Route::post('/sms/update-template', [MessageApiController::class, 'updateAbsenceTemplate'])->name('sms.update-template');
+        Route::post('/sms/send-absence-notifications', [MessageApiController::class, 'sendAbsenceNotifications'])->name('sms.send-absence-notifications');
+        Route::post('/sms/resend-pending-today', [MessageApiController::class, 'resendPendingToday'])->name('sms.resend-pending-today');
         Route::post('/sms/{id}/retry', [AdminSmsController::class, 'retry'])->name('sms.retry');
         
         Route::post('/profile/update', [AdminUserController::class, 'updateProfile'])->name('profile.update');
@@ -99,7 +124,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::resource('users', AdminUserController::class);
 
         Route::get('/evaluations', [AdminEvaluationController::class, 'index'])->name('evaluations');
-        Route::get('/evaluations/monitoring', [FacultyEvaluationController::class, 'monitoring'])->name('evaluations.monitoring');
+        Route::redirect('/evaluations/monitoring', '/admin/evaluations/periods')->name('evaluations.monitoring');
         Route::get('/evaluations/periods', [AdminEvaluationController::class, 'periods'])->name('evaluations.periods');
         Route::post('/evaluations/periods/save', [AdminEvaluationController::class, 'savePeriod'])->name('evaluations.periods.save');
         Route::get('/evaluations/forms/{type}/edit', [AdminEvaluationController::class, 'editForm'])->name('evaluations.forms.edit');
@@ -156,11 +181,15 @@ Route::middleware(['auth', 'verified'])->group(function () {
         });
 
         Route::get('/attendance', [AdminAttendanceController::class, 'index'])->name('attendance');
-        Route::get('/attendance/live', [AdminAttendanceController::class, 'live'])->name('attendance.live');
-        Route::get('/attendance/override', [AdminAttendanceController::class, 'override'])->name('attendance.override');
+        Route::get('/attendance/live', fn () => redirect()->route('attendance.live'))->name('attendance.live');
+        Route::get('/attendance/record', [AdminAttendanceController::class, 'override'])->name('attendance.record');
+        Route::get('/attendance/override', fn () => redirect()->route('admin.attendance.record'))->name('attendance.override');
+        Route::patch('/attendance/{id}/override', [AdminAttendanceController::class, 'overrideRecord'])->name('attendance.override.update');
         Route::get('/attendance/export', [AdminAttendanceController::class, 'export'])->name('attendance.export');
 
         Route::get('/announcements', [AdminAnnouncementController::class, 'index'])->name('announcements');
+        Route::post('/announcements', [AdminAnnouncementController::class, 'store'])->name('announcements.store');
+        Route::delete('/announcements/{id}', [AdminAnnouncementController::class, 'destroy'])->name('announcements.destroy');
 
         Route::get('/reports', [AdminReportController::class, 'index'])->name('reports');
         Route::get('/reports/attendance', [AdminReportController::class, 'attendance'])->name('reports.attendance');
@@ -173,9 +202,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
         Route::get('/settings', [AdminSettingController::class, 'settingsIndex'])->name('settings');
         Route::post('/settings/sms', [AdminSettingController::class, 'updateSms'])->name('settings.sms.update');
+        Route::post('/settings/sms-templates', [AdminSettingController::class, 'updateSmsTemplates'])->name('settings.sms-templates.update');
         Route::post('/settings/sms/test', [AdminSettingController::class, 'testSms'])->name('settings.sms.test');
         Route::post('/settings/school-year/dates', [AdminSettingController::class, 'updateSchoolYearDates'])->name('settings.school-year.dates.update');
-        Route::get('/kiosk', [NfcAttendanceController::class, 'kioskView'])->name('kiosk');
+        Route::redirect('/kiosk', '/attendance')->name('kiosk');
     });
 
     /*
@@ -203,9 +233,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('/students', [TeacherDashboardController::class, 'storeStudent'])->name('students.store');
         Route::put('/students/{id}', [TeacherDashboardController::class, 'updateStudent'])->name('students.update');
         
-        Route::get('/messages', [TeacherDashboardController::class, 'messages'])->name('messages');
-        Route::get('/messages/ping', [TeacherDashboardController::class, 'pingGateway'])->name('messages.ping');
-        Route::post('/messages/notify-absents', [TeacherDashboardController::class, 'notifyAbsents'])->name('messages.notify-absents');
+        Route::get('/message', [MessageApiController::class, 'teacherIndex'])->name('message');
+        Route::get('/messages', [MessageApiController::class, 'teacherIndex'])->name('messages');
+        Route::get('/messages/ping', [MessageApiController::class, 'pingGateway'])->name('messages.ping');
+        Route::post('/messages/notify-absence', [MessageApiController::class, 'sendTeacherAbsenceNotifications'])->name('messages.notify-absence');
         Route::post('/messages/clear-logs', [TeacherDashboardController::class, 'clearDailyLogs'])->name('messages.clear-logs');
         
         Route::get('/reports', [TeacherDashboardController::class, 'reports'])->name('reports');
@@ -213,15 +244,16 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/schedule/{id}/students', [TeacherDashboardController::class, 'classList'])->name('schedule.students');
         Route::put('/profile/update', [TeacherDashboardController::class, 'updateProfile'])->name('profile.update');
         
-        Route::get('/attendance', [NfcAttendanceController::class, 'attendanceIndex'])->name('attendance');
+        Route::get('/attendance', [TeacherDashboardController::class, 'attendance'])->name('attendance');
         Route::get('/attendance/export', [NfcAttendanceController::class, 'exportCsv'])->name('attendance.export');
         
         Route::get('/evaluations', [TeacherDashboardController::class, 'evaluationsIndex'])->name('evaluations.index');
         Route::post('/evaluations/peer', [TeacherDashboardController::class, 'storePeerEvaluation'])->name('evaluations.peer.store');
         Route::post('/evaluations/self', [TeacherDashboardController::class, 'storeSelfEvaluation'])->name('evaluations.self.store');
 
-        Route::get('/evaluation-report', [TeacherDashboardController::class, 'evaluationReport'])->name('evaluation.report');
-        Route::get('/kiosk', [NfcAttendanceController::class, 'kioskView'])->name('kiosk');
+        Route::get('/evaluations/results', [TeacherEvaluationResultController::class, 'index'])->name('evaluations.results');
+        Route::get('/evaluation-report', [TeacherEvaluationResultController::class, 'index'])->name('evaluation.report');
+        Route::redirect('/kiosk', '/attendance')->name('kiosk');
     });
 
     /*
@@ -231,6 +263,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     */
     Route::middleware(['role:student'])->prefix('student')->name('student.')->group(function () {
         Route::get('/dashboard', [StudentDashboardController::class, 'index'])->name('dashboard');
+        Route::get('/schedules', [StudentDashboardController::class, 'schedules'])->name('schedules');
         Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
         Route::match(['put', 'patch'], '/profile', [ProfileController::class, 'update'])->name('profile.update');
         Route::get('/attendance', [StudentDashboardController::class, 'attendance'])->name('attendance');

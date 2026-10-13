@@ -245,13 +245,13 @@
                             <template x-if="selectedSection">
                                 <span>filtered by section: <strong class="text-[#590d0d]" x-text="selectedSection"></strong></span>
                             </template>
-                            &bull; Click any class card to view its student roster
+                            &bull; Section schedules include other faculty; open your own class to view its roster
                         </p>
                     </div>
 
                     <div class="flex items-center gap-2">
                         <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black bg-amber-50 text-amber-900 border border-amber-300">
-                            <i class="fa-solid fa-circle-info text-amber-600"></i> Click card to view students
+                            <i class="fa-solid fa-circle-info text-amber-600"></i> Roster link appears on your own classes
                         </span>
                     </div>
                 </div>
@@ -275,8 +275,7 @@
                                         <td class="p-3.5 border-r border-slate-200 last:border-r-0 align-top space-y-3 bg-slate-50/25 min-h-[320px]">
                                             <!-- Classes in this day -->
                                             <template x-for="sched in getDaySchedules(day)" :key="sched.id">
-                                                <a :href="'{{ url('/teacher/schedule') }}/' + sched.id + '/students'"
-                                                   class="w-full p-3.5 rounded-2xl bg-white border-2 border-slate-200/90 text-left flex flex-col justify-between shadow-2xs transition hover:border-[#590d0d] hover:shadow-md hover:scale-[1.01] block group cursor-pointer relative overflow-hidden">
+                                                <div class="w-full p-3.5 rounded-2xl bg-white border-2 border-slate-200/90 text-left flex flex-col justify-between shadow-2xs transition hover:border-[#590d0d] hover:shadow-md block group relative overflow-hidden">
                                                     
                                                     <!-- Left Accent Bar -->
                                                     <div class="absolute left-0 inset-y-0 w-1.5 bg-[#590d0d] group-hover:w-2 transition-all"></div>
@@ -291,6 +290,7 @@
 
                                                         <h4 class="text-xs font-black text-slate-900 group-hover:text-[#590d0d] tracking-tight leading-snug transition"
                                                             x-text="sched.subject_name || sched.subject || (sched.subject_record ? sched.subject_record.name : 'Unnamed Subject')"></h4>
+                                                        <p class="text-[10px] text-slate-500 font-semibold mt-1" x-text="'Teacher: ' + (sched.teacher_name || 'Assigned Faculty')"></p>
                                                     </div>
 
                                                     <div class="mt-3 pl-2 pt-2 border-t border-slate-100 text-[11px] font-bold text-slate-500 flex items-center justify-between">
@@ -303,7 +303,11 @@
                                                             <span x-text="sched.student_count"></span>
                                                         </span>
                                                     </div>
-                                                </a>
+                                                    <a x-show="sched.is_mine" :href="'{{ url('/teacher/schedule') }}/' + sched.id + '/students'"
+                                                       class="mt-2 pl-2 text-[10px] text-[#590d0d] font-black hover:underline">
+                                                        <i class="fa-solid fa-address-book mr-1"></i>View student roster
+                                                    </a>
+                                                </div>
                                             </template>
 
                                             <!-- Empty state for day -->
@@ -328,7 +332,7 @@
                             <span>Class Schedule List</span>
                         </h2>
                         <p class="text-xs text-slate-500 font-semibold mt-0.5">
-                            Showing <span class="font-bold text-slate-800" x-text="filteredSchedules.length"></span> assigned class periods
+                            Showing <span class="font-bold text-slate-800" x-text="filteredSchedules.length"></span> classes in your assigned sections
                         </p>
                     </div>
                     <span class="text-[10px] uppercase tracking-widest font-black text-slate-400">Class Load Directory</span>
@@ -393,11 +397,14 @@
 
                                 <!-- Action: View Students -->
                                 <td class="p-4 text-center">
-                                    <a :href="'{{ url('/teacher/schedule') }}/' + sched.id + '/students'" 
+                                    <a
+                                       x-show="sched.is_mine"
+                                       :href="'{{ url('/teacher/schedule') }}/' + sched.id + '/students'"
                                        class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#590d0d] hover:bg-[#741212] text-amber-300 font-black text-xs shadow-2xs transition">
                                         <i class="fa-solid fa-address-book text-xs"></i>
                                         <span>Class Roster</span>
                                     </a>
+                                    <span x-show="!sched.is_mine" class="text-[10px] font-bold text-slate-400">Section schedule</span>
                                 </td>
                             </tr>
                         </template>
@@ -608,17 +615,19 @@
 @push('scripts')
 <script>
 function classesPage() {
-    const rawSchedules = @js($mySchedules->map(fn($sched) => [
-        'id' => $sched->id,
-        'subject_name' => $sched->subject_name ?: ($sched->subject ?: optional($sched->subjectRecord)->name),
-        'subject_code' => $sched->subject_code ?: optional($sched->subjectRecord)->code,
-        'grade_level' => optional($sched->academicSection)->grade_level ?: $sched->grade_level,
-        'strand' => optional($sched->academicSection)->strand ?: $sched->strand,
-        'normalized_section' => $sched->normalized_section,
-        'day' => trim($sched->day ?? $sched->day_of_week ?? ''),
-        'start_time' => $sched->start_time,
-        'end_time' => $sched->end_time,
-        'student_count' => $sched->student_count ?? 0,
+    const rawSchedules = @js($teacherTimetableSchedules->map(fn($sched) => [
+        'id' => $sched['id'],
+        'subject_name' => $sched['subject'],
+        'subject_code' => $sched['subject_code'],
+        'grade_level' => $sched['grade_level'],
+        'strand' => $sched['strand'],
+        'normalized_section' => $sched['section_name'],
+        'day' => $sched['day'],
+        'start_time' => $sched['start_time_value'],
+        'end_time' => $sched['end_time_value'],
+        'teacher_name' => $sched['teacher'],
+        'is_mine' => $sched['is_mine'],
+        'student_count' => $sched['student_count'],
     ])->values());
 
     return {
@@ -662,7 +671,8 @@ function classesPage() {
                     const name = (s.subject_name || '').toLowerCase();
                     const code = (s.subject_code || '').toLowerCase();
                     const sec = (s.normalized_section || '').toLowerCase();
-                    return name.includes(query) || code.includes(query) || sec.includes(query);
+                    const teacher = (s.teacher_name || '').toLowerCase();
+                    return name.includes(query) || code.includes(query) || sec.includes(query) || teacher.includes(query);
                 });
             }
 

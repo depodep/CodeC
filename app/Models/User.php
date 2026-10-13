@@ -50,7 +50,6 @@ class User extends Authenticatable
             // Tinanggal na ang 'password' => 'hashed' para sa plain text storage
             'is_active'         => 'boolean',
             'is_principal'      => 'boolean',
-            'gender'            => 'integer',
             'grade_level'       => 'string',
             'strand'            => 'string',
             'section'           => 'string',
@@ -108,16 +107,19 @@ class User extends Authenticatable
     }
 
     /**
-     * Resolve numeric gender into readable string.
-     * 1 = Male, 2 = Female
+     * Resolve gender into readable string.
+     * Supports both string ('Male', 'Female') and numeric (1, 2) values.
      */
     public function getGenderNameAttribute(): string
     {
-        return match ((int)($this->gender ?? 0)) {
-            1 => 'Male',
-            2 => 'Female',
-            default => 'Not Specified',
-        };
+        $g = strtolower(trim((string)($this->gender ?? '')));
+        if ($g === 'male' || $g === 'm' || $g === '1') {
+            return 'Male';
+        }
+        if ($g === 'female' || $g === 'f' || $g === '2') {
+            return 'Female';
+        }
+        return 'Not Specified';
     }
 
     /**
@@ -127,5 +129,21 @@ class User extends Authenticatable
     {
         $middle = !empty($this->middle_name) ? ' ' . strtoupper(substr($this->middle_name, 0, 1)) . '.' : '';
         return trim("{$this->last_name}, {$this->first_name}{$middle}");
+    }
+
+    /**
+     * Get contact person contact (parent phone number or student phone number).
+     */
+    public function getContactPersonContactAttribute(): ?string
+    {
+        return $this->parent_phone_number ?: $this->phone_number;
+    }
+
+    /**
+     * Primary contact number for direct messaging.
+     */
+    public function getContactNumberAttribute(): ?string
+    {
+        return $this->phone_number ?: $this->parent_phone_number;
     }
 }

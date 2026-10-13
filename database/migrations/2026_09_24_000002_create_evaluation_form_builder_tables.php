@@ -62,6 +62,28 @@ return new class extends Migration
             });
         }
 
+        if (!Schema::hasTable('evaluation_questions')) {
+            Schema::create('evaluation_questions', function (Blueprint $table) {
+                $table->id();
+                $table->unsignedBigInteger('form_id')->nullable();
+                $table->unsignedBigInteger('section_id')->nullable();
+                $table->unsignedBigInteger('subheading_id')->nullable();
+                $table->string('form_type', 50)->nullable();
+                $table->string('category')->nullable();
+                $table->text('question');
+                $table->string('type', 50)->default('likert');
+                $table->json('options')->nullable();
+                $table->boolean('is_required')->default(true);
+                $table->integer('order_num')->default(1);
+                $table->boolean('is_active')->default(true);
+                $table->timestamps();
+
+                $table->foreign('form_id')->references('id')->on('evaluation_forms')->nullOnDelete();
+                $table->foreign('section_id')->references('id')->on('evaluation_sections')->nullOnDelete();
+                $table->foreign('subheading_id')->references('id')->on('evaluation_subheadings')->nullOnDelete();
+            });
+        }
+
         if (Schema::hasTable('evaluation_questions')) {
             Schema::table('evaluation_questions', function (Blueprint $table) {
                 if (!Schema::hasColumn('evaluation_questions', 'form_id')) {

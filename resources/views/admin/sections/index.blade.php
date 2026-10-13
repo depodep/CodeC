@@ -20,6 +20,11 @@
          assignGradeLevel: '',
          currentAdviserId: '',
 
+         deleteModal: false,
+         deleteId: '',
+         deleteName: '',
+         deleteGrade: '',
+
          toggleGrade(grade) {
              this.openGrades[grade] = !this.openGrades[grade];
          },
@@ -39,6 +44,13 @@
              this.assignGradeLevel = grade;
              this.currentAdviserId = adviserId || '';
              this.assignModal = true;
+         },
+
+         openDelete(id, name, grade) {
+             this.deleteId = id;
+             this.deleteName = name;
+             this.deleteGrade = grade;
+             this.deleteModal = true;
          },
 
          isJuniorHigh(grade) {
@@ -90,58 +102,6 @@
         </div>
         @endif
 
-        <!-- ================= MINI DASHBOARD KPI CARDS BAR (MATCHES IMAGE 3) ================= -->
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <!-- Total Sections -->
-            <div class="bg-white p-5 rounded-3xl border-2 border-slate-200 shadow-xs flex items-center justify-between">
-                <div>
-                    <span class="text-[10px] font-black uppercase text-slate-400 tracking-wider">Total Sections</span>
-                    <h3 class="text-2xl font-black text-slate-900 mt-1">{{ $totalSectionsCount ?? 0 }}</h3>
-                    <p class="text-[10px] text-slate-500 font-bold mt-1">Across all grade levels</p>
-                </div>
-                <div class="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center text-xl border border-amber-200 shrink-0">
-                    <i class="fa-solid fa-cubes"></i>
-                </div>
-            </div>
-
-            <!-- Junior High Sections -->
-            <div class="bg-white p-5 rounded-3xl border-2 border-slate-200 shadow-xs flex items-center justify-between">
-                <div>
-                    <span class="text-[10px] font-black uppercase text-slate-400 tracking-wider">Junior High (7-10)</span>
-                    <h3 class="text-2xl font-black text-slate-900 mt-1">{{ $jhsSectionsCount ?? 0 }}</h3>
-                    <p class="text-[10px] text-blue-600 font-bold mt-1">Grade 7 to 10 sections</p>
-                </div>
-                <div class="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center text-xl border border-blue-200 shrink-0">
-                    <i class="fa-solid fa-school"></i>
-                </div>
-            </div>
-
-            <!-- Senior High Sections -->
-            <div class="bg-white p-5 rounded-3xl border-2 border-slate-200 shadow-xs flex items-center justify-between">
-                <div>
-                    <span class="text-[10px] font-black uppercase text-slate-400 tracking-wider">Senior High (11-12)</span>
-                    <h3 class="text-2xl font-black text-slate-900 mt-1">{{ $shsSectionsCount ?? 0 }}</h3>
-                    <p class="text-[10px] text-purple-600 font-bold mt-1">Grade 11 & 12 sections</p>
-                </div>
-                <div class="w-12 h-12 rounded-2xl bg-purple-50 text-purple-600 flex items-center justify-center text-xl border border-purple-200 shrink-0">
-                    <i class="fa-solid fa-graduation-cap"></i>
-                </div>
-            </div>
-
-            <!-- Assigned Advisers -->
-            <div class="bg-white p-5 rounded-3xl border-2 border-slate-200 shadow-xs flex items-center justify-between">
-                <div>
-                    <span class="text-[10px] font-black uppercase text-slate-400 tracking-wider">Assigned Advisers</span>
-                    <h3 class="text-2xl font-black text-slate-900 mt-1">{{ $assignedAdvisersCount ?? 0 }} / {{ $totalSectionsCount ?? 0 }}</h3>
-                    <p class="text-[10px] font-bold mt-1 {{ ($unassignedSectionsCount ?? 0) > 0 ? 'text-amber-600' : 'text-emerald-600' }}">
-                        {{ ($unassignedSectionsCount ?? 0) > 0 ? ($unassignedSectionsCount . ' sections pending adviser') : 'All sections assigned' }}
-                    </p>
-                </div>
-                <div class="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-xl border border-emerald-200 shrink-0">
-                    <i class="fa-solid fa-user-tie"></i>
-                </div>
-            </div>
-        </div>
 
 
         <!-- Compact Form Card for Adding Sections -->
@@ -338,16 +298,13 @@
                                                     <i class="fa-solid fa-pen-to-square"></i>
                                                 </button>
 
-                                                <!-- Delete Section Form -->
-                                                <form action="{{ route('admin.sections.destroy', $sec->id) }}" method="POST" class="inline-block" onsubmit="return confirm('Are you sure you want to delete this section?');">
-                                                    @csrf
-                                                    @method('DELETE')
-                                                    <button type="submit" 
-                                                            title="Delete Section"
-                                                            class="w-8 h-8 rounded-xl bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 flex items-center justify-center text-xs transition cursor-pointer">
-                                                        <i class="fa-solid fa-trash-can"></i>
-                                                    </button>
-                                                </form>
+                                                <!-- Delete Section Button -->
+                                                <button type="button"
+                                                        @click="openDelete('{{ $sec->id }}', '{{ addslashes($sec->section_name) }}', '{{ addslashes($sec->grade_level) }}')"
+                                                        title="Delete Section"
+                                                        class="w-8 h-8 rounded-xl bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 flex items-center justify-center text-xs transition cursor-pointer">
+                                                    <i class="fa-solid fa-trash-can"></i>
+                                                </button>
                                             </div>
                                         </td>
                                     </tr>
@@ -472,6 +429,35 @@
                         Save Adviser
                     </button>
                 </div>
+            </form>
+        </div>
+    </div>
+    <!-- ================= DELETE CONFIRMATION MODAL ================= -->
+    <div x-show="deleteModal" x-transition class="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-950/50 backdrop-blur-xs p-4" style="display: none;" x-cloak>
+        <div @click.outside="deleteModal = false" class="bg-white rounded-3xl border-2 border-red-100 p-8 max-w-md w-full shadow-2xl space-y-6 text-center">
+            <div class="w-16 h-16 rounded-2xl bg-red-50 border-2 border-red-200 text-red-600 flex items-center justify-center text-2xl mx-auto">
+                <i class="fa-solid fa-triangle-exclamation"></i>
+            </div>
+            <div class="space-y-2">
+                <h3 class="text-base font-black text-slate-900">Delete Class Section?</h3>
+                <p class="text-xs font-bold text-slate-500">
+                    You are about to permanently delete:
+                </p>
+                <div class="mt-2 bg-red-50 border border-red-200 rounded-2xl px-4 py-3 text-left space-y-1">
+                    <p class="text-xs font-black text-slate-800"><span class="text-slate-400 font-bold">Section: </span><span x-text="deleteName"></span></p>
+                    <p class="text-xs font-black text-slate-800"><span class="text-slate-400 font-bold">Grade: </span><span x-text="deleteGrade"></span></p>
+                </div>
+                <p class="text-[11px] text-red-600 font-bold mt-1">This action cannot be undone. All data associated with this section may be affected.</p>
+            </div>
+            <form :action="'/admin/sections/' + deleteId" method="POST" class="grid grid-cols-2 gap-3">
+                @csrf
+                @method('DELETE')
+                <button type="button" @click="deleteModal = false" class="w-full py-3.5 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-black uppercase tracking-wider cursor-pointer transition">
+                    Cancel
+                </button>
+                <button type="submit" class="w-full py-3.5 rounded-2xl bg-red-600 hover:bg-red-700 text-white text-xs font-black uppercase tracking-wider shadow-md transition cursor-pointer">
+                    <i class="fa-solid fa-trash-can mr-1"></i> Delete
+                </button>
             </form>
         </div>
     </div>

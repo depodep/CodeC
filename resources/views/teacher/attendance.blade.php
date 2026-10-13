@@ -26,24 +26,36 @@
     @include('layouts.sidebar')
 
     <!-- MAIN DASHBOARD CONTENT -->
-    <main id="app-main" class="flex-1 min-h-screen p-8 bg-[#f8fafc] pl-72 transition-all duration-300" :class="sidebarCollapsed ? 'pl-20' : 'pl-72'">
+    <main class="flex-1 min-w-0 min-h-screen p-4 sm:p-6 lg:p-8 bg-[#f8fafc] transition-[margin] duration-300"
+          :style="{ marginLeft: sidebarCollapsed ? '5rem' : '18rem' }">
         
         <!-- Header Profile Bar -->
-        <div class="flex items-center justify-between mb-8 pb-4 border-b border-slate-200/60">
-            <div>
-                <h1 class="text-2xl font-black text-slate-900 tracking-tight">Student Attendance Monitor</h1>
-                <p class="text-xs text-slate-500 font-semibold mt-0.5">Southern Isabela Academy &bull; Real-Time NFC Tap Logs & Attendance Monitor</p>
+        <header class="flex flex-col xl:flex-row xl:items-center justify-between gap-4 mb-6 pb-4 border-b border-slate-200/60">
+            <div class="min-w-0">
+                <h1 class="text-2xl font-black text-slate-900 tracking-tight">
+                    {{ $dateFrom === $today && $dateTo === $today ? "Today's Attendance" : 'Attendance Records' }}
+                </h1>
+                <p class="text-xs text-slate-500 font-semibold mt-0.5">
+                    {{ \Carbon\Carbon::parse($dateFrom)->format('F d, Y') }}
+                    @if($dateTo !== $dateFrom)
+                        &ndash; {{ \Carbon\Carbon::parse($dateTo)->format('F d, Y') }}
+                    @endif
+                    &bull; Southern Isabela Academy
+                </p>
             </div>
-            <div class="flex items-center gap-3">
-                <div class="w-10 h-10 rounded-full bg-amber-100 border border-amber-300 flex items-center justify-center font-bold text-amber-900 text-xs">
+            <div class="flex flex-wrap items-center gap-3">
+                <a href="{{ route('attendance.start') }}" class="px-4 py-2.5 rounded-xl bg-[#590d0d] hover:bg-[#43090c] text-amber-300 font-black text-xs flex items-center gap-2 transition shadow-xs shrink-0">
+                    <i class="fa-solid fa-play"></i> Start Attendance
+                </a>
+                <div class="w-10 h-10 rounded-full bg-amber-100 border border-amber-300 flex items-center justify-center font-bold text-amber-900 text-xs shrink-0">
                     {{ substr(Auth::user()->first_name ?? 'P', 0, 1) }}{{ substr(Auth::user()->last_name ?? 'G', 0, 1) }}
                 </div>
-                <div>
+                <div class="min-w-0">
                     <div class="text-xs font-bold text-slate-900">{{ Auth::user()->first_name ?? 'Prof.' }} {{ Auth::user()->last_name ?? 'Teacher' }}</div>
                     <div class="text-[10px] text-amber-700 font-semibold">Faculty Member</div>
                 </div>
             </div>
-        </div>
+        </header>
 
         <!-- Metric Counter Cards (Real Data) -->
         <div class="grid grid-cols-1 md:grid-cols-3 gap-5 mb-8">
@@ -97,8 +109,8 @@
                     <p class="text-xs text-red-100/75 mt-0.5">Launch the dedicated station for tap identification and real-time database recording.</p>
                 </div>
             </div>
-            <a href="{{ route('teacher.kiosk') }}" target="_blank" class="px-6 py-3.5 bg-white text-slate-950 hover:bg-amber-300 rounded-2xl font-black text-xs uppercase tracking-wider transition shadow-lg shrink-0 flex items-center gap-2">
-                <i class="fa-solid fa-arrow-up-right-from-square"></i> Launch Kiosk Terminal
+            <a href="{{ route('attendance.start') }}" class="px-6 py-3.5 bg-white text-slate-950 hover:bg-amber-300 rounded-2xl font-black text-xs uppercase tracking-wider transition shadow-lg shrink-0 flex items-center gap-2">
+                <i class="fa-solid fa-play"></i> Start Attendance Session
             </a>
         </div>
 
@@ -108,7 +120,9 @@
             <!-- Filters Toolbar (Added SF2 Button) -->
             <form method="GET" action="{{ route('teacher.attendance') }}" class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 pb-5 border-b border-slate-100">
                 <div class="flex items-center gap-2">
-                    <span class="px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-50 text-amber-900 border border-amber-200 uppercase tracking-wider">Filtered Date</span>
+                    <span class="px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-50 text-amber-900 border border-amber-200 uppercase tracking-wider">
+                        {{ $dateFrom === $today && $dateTo === $today ? 'Today' : 'Filtered Date' }}
+                    </span>
                     <h3 class="font-black text-slate-900 text-base">
                         {{ \Carbon\Carbon::parse($dateFrom ?? now())->format('F d, Y') }}
                     </h3>
@@ -130,12 +144,16 @@
 
                     <!-- Date Picker -->
                     <input type="date" name="date_from" value="{{ $dateFrom ?? now()->format('Y-m-d') }}" class="px-3 py-2 bg-slate-50 border border-slate-200 text-xs font-semibold rounded-xl text-slate-700 outline-none focus:border-amber-400 cursor-pointer">
-                    <input type="hidden" name="date_to" value="{{ $dateFrom ?? now()->format('Y-m-d') }}">
+                    <input type="date" name="date_to" value="{{ $dateTo ?? $dateFrom ?? now()->format('Y-m-d') }}" class="px-3 py-2 bg-slate-50 border border-slate-200 text-xs font-semibold rounded-xl text-slate-700 outline-none focus:border-amber-400 cursor-pointer">
 
                     <!-- Action Buttons -->
                     <button type="submit" class="px-4 py-2 bg-[#5c0d11] hover:bg-[#43090c] text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm">
                         <i class="fa-solid fa-filter"></i> Apply
                     </button>
+
+                    <a href="{{ route('teacher.attendance', ['date_from' => $today, 'date_to' => $today]) }}" class="px-4 py-2 bg-amber-400 hover:bg-amber-300 text-amber-950 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm" title="Show today's attendance">
+                        <i class="fa-solid fa-calendar-day"></i> Today
+                    </a>
 
                     <!-- NEW: Generate SF2 Button -->
                     <a href="{{ route('teacher.attendance.export') ?? '#' }}?date={{ $dateFrom ?? now()->format('Y-m-d') }}" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm border border-emerald-700" title="Download Monthly Attendance Report">
@@ -184,9 +202,11 @@
                                         <?php echo e(!empty($log->time_out) ? \Carbon\Carbon::parse($log->time_out)->format('h:i A') : '--:-- --'); ?>
                                     </td>
                                     <td class="py-3.5 px-4 text-right">
-                                        <span class="inline-block px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider <?php echo ($log->status ?? '') === 'ON-TIME' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-amber-50 text-amber-700 border border-amber-200'; ?>">
-                                            <?php echo e($log->status ?? 'ON-TIME'); ?>
-                                        </span>
+                                        <?php if (($log->status ?? '') === 'ON-TIME' || ($log->status ?? '') === 'PRESENT'): ?>
+                                            <span class="inline-block px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-200">On-Time</span>
+                                        <?php else: ?>
+                                            <span class="inline-block px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-50 text-amber-700 border border-amber-200"><?php echo e($log->status ?? 'Unknown'); ?></span>
+                                        <?php endif; ?>
                                     </td>
                                 </tr>
                             <?php endforeach; ?>

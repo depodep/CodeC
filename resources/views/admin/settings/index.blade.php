@@ -3,7 +3,55 @@
 @section('title', 'System Configuration - SIATRACK')
 
 @section('content')
-<div class="w-full min-h-screen flex flex-col bg-slate-50" x-data="{ showAddSchoolYear: false, showAllSchoolYears: false, showEditDates: false, smsTesting: false, smsResult: null }">
+<div class="w-full min-h-screen flex flex-col bg-slate-50" 
+     x-data="{ 
+         showAddSchoolYear: false, 
+         showAllSchoolYears: false, 
+         showEditDates: false, 
+         showSmsTemplates: false,
+         smsTesting: false, 
+         smsResult: null,
+         securityModal: false,
+         actionType: '',
+         adminPassword: '',
+         passwordError: false,
+         showModalPassword: false,
+         isSubmitting: false,
+         actionTitle: '',
+         actionDesc: '',
+         targetFormId: '',
+
+         requestPassword(formId, title, desc) {
+             this.targetFormId = formId;
+             this.actionTitle = title;
+             this.actionDesc = desc;
+             this.adminPassword = '';
+             this.passwordError = false;
+             this.showModalPassword = false;
+             this.securityModal = true;
+             setTimeout(() => {
+                 let el = document.getElementById('settingsSecPasswordInput');
+                 if (el) el.focus();
+             }, 50);
+         },
+
+         submitAuthorizedAction() {
+             if (!this.adminPassword.trim()) {
+                 this.passwordError = true;
+                 return;
+             }
+             this.isSubmitting = true;
+             const form = document.getElementById(this.targetFormId);
+             if (form) {
+                 const pwInput = form.querySelector('input[name=\'admin_password\']');
+                 if (pwInput) pwInput.value = this.adminPassword;
+                 form.submit();
+             } else {
+                 this.isSubmitting = false;
+                 this.securityModal = false;
+             }
+         }
+     }">
     
     <header class="bg-white border-b-2 border-slate-200 px-6 lg:px-10 py-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4 sticky top-0 z-20 shadow-xs">
         <div class="flex items-center gap-4">
@@ -88,8 +136,9 @@
                 </div>
             </div>
 
-            <form method="POST" action="{{ route('admin.settings.sms.update') }}" class="space-y-4">
+            <form id="smsSettingsForm" method="POST" action="{{ route('admin.settings.sms.update') }}" class="space-y-4">
                 @csrf
+                <input type="hidden" name="admin_password" value="">
                 <div>
                     <label for="sms_url" class="block text-xs font-black text-slate-700 mb-1.5">Gateway URL</label>
                     <input id="sms_url" name="url" type="url" required value="{{ old('url', $smsConfig['url']) }}"
@@ -115,10 +164,45 @@
                 </div>
                 <div class="flex items-center justify-between gap-3 pt-2">
                     <span class="text-[11px] font-bold" :class="smsResult?.success ? 'text-emerald-600' : 'text-slate-500'"><i class="fa-solid fa-clock mr-1"></i><span x-text="smsResult ? (smsResult.message + (smsResult.response_time_ms ? ' ' + smsResult.response_time_ms + ' ms' : '')) : '{{ $smsLastPing ? 'Last ping: ' . $smsLastPing : 'Last ping: Not tested' }}'"></span></span>
-                    <div class="flex gap-2">
-                        <button type="button" @click="smsTesting = true; smsResult = null; fetch('{{ route('admin.settings.sms.test') }}', {method: 'POST', headers: {'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json'}}).then(r => r.json()).then(data => smsResult = data).catch(() => smsResult = {success:false, message:'Unable to test SMS API.'}).finally(() => smsTesting = false)" :disabled="smsTesting" class="px-3 py-2.5 bg-slate-100 text-slate-700 text-xs font-black rounded-xl"><i class="fa-solid fa-plug mr-1"></i><span x-text="smsTesting ? 'Testing...' : 'Test Connection'"></span></button>
-                        <button type="submit" class="px-4 py-2.5 bg-[#590d0d] hover:bg-red-950 text-white text-xs font-black rounded-xl shadow-md transition"><i class="fa-solid fa-floppy-disk mr-1.5"></i>Save Configuration</button>
+                    <div class="flex gap-2 flex-wrap justify-end">
+                        <button type="button" @click="showSmsTemplates = true" class="px-3 py-2.5 bg-amber-100 text-amber-900 text-xs font-black rounded-xl border border-amber-300 cursor-pointer">
+                            <i class="fa-solid fa-pen-to-square mr-1"></i>Edit SMS Templates
+                        </button>
+                        <button type="button" @click="smsTesting = true; smsResult = null; fetch('{{ route('admin.settings.sms.test') }}', {method: 'POST', headers: {'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json'}}).then(r => r.json()).then(data => smsResult = data).catch(() => smsResult = {success:false, message:'Unable to test SMS API.'}).finally(() => smsTesting = false)" :disabled="smsTesting" class="px-3 py-2.5 bg-slate-100 text-slate-700 text-xs font-black rounded-xl cursor-pointer"><i class="fa-solid fa-plug mr-1"></i><span x-text="smsTesting ? 'Testing...' : 'Test Connection'"></span></button>
+                        <button type="button" @click="requestPassword('smsSettingsForm', 'Confirm SMS API Configuration', 'Updating SMS gateway credentials requires admin password verification.')" class="px-4 py-2.5 bg-[#590d0d] hover:bg-red-950 text-white text-xs font-black rounded-xl shadow-md transition cursor-pointer flex items-center gap-1.5"><i class="fa-solid fa-shield-halved text-amber-300"></i>Save Configuration</button>
                     </div>
+                </div>
+            </form>
+        </div>
+
+        <!-- SMS Template Editor -->
+        <div x-show="showSmsTemplates" x-transition class="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/70 p-4" x-cloak>
+            <form method="POST" action="{{ route('admin.settings.sms-templates.update') }}" class="bg-white rounded-2xl w-full max-w-3xl shadow-2xl overflow-hidden">
+                @csrf
+                <div class="bg-[#590d0d] border-b-4 border-amber-400 px-6 py-4 flex items-center justify-between">
+                    <div>
+                        <h3 class="text-base font-black text-white">Edit SMS Templates</h3>
+                        <p class="text-[11px] text-amber-100 mt-1">Used by the automatic post-subject attendance monitor.</p>
+                    </div>
+                    <button type="button" @click="showSmsTemplates = false" class="text-white/70 hover:text-white cursor-pointer" aria-label="Close template editor">
+                        <i class="fa-solid fa-xmark text-lg"></i>
+                    </button>
+                </div>
+                <div class="p-6 space-y-5">
+                    <div>
+                        <label for="subject_absence_template" class="block text-xs font-black text-slate-700 mb-1.5">Subject Schedule Absence</label>
+                        <textarea id="subject_absence_template" name="subject_absence_template" rows="4" required class="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs text-slate-800 focus:border-[#590d0d] focus:outline-none">{{ old('subject_absence_template', $smsTemplates['subject_absence_template']) }}</textarea>
+                        <p class="mt-1.5 text-[11px] text-slate-500">Placeholders: <code>{student_name}</code>, <code>{subject_name}</code>, <code>{date}</code>, <code>{start_time}</code>, <code>{end_time}</code>, <code>{section_name}</code></p>
+                    </div>
+                    <div>
+                        <label for="classroom_absence_template" class="block text-xs font-black text-slate-700 mb-1.5">Classroom/Section Absence</label>
+                        <textarea id="classroom_absence_template" name="classroom_absence_template" rows="4" required class="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs text-slate-800 focus:border-[#590d0d] focus:outline-none">{{ old('classroom_absence_template', $smsTemplates['classroom_absence_template']) }}</textarea>
+                        <p class="mt-1.5 text-[11px] text-slate-500">Placeholders: <code>{section_name}</code>, <code>{absent_students}</code>, <code>{subject_name}</code>, <code>{date}</code></p>
+                    </div>
+                </div>
+                <div class="px-6 pb-6 flex justify-end gap-2">
+                    <button type="button" @click="showSmsTemplates = false" class="px-4 py-2.5 rounded-xl bg-slate-100 text-slate-700 text-xs font-black cursor-pointer">Cancel</button>
+                    <button type="submit" class="px-4 py-2.5 rounded-xl bg-[#590d0d] text-amber-300 text-xs font-black cursor-pointer"><i class="fa-solid fa-floppy-disk mr-1"></i>Save Templates</button>
                 </div>
             </form>
         </div>
@@ -212,16 +296,17 @@
 
     <!-- Update Active School Year Dates Modal -->
     @if($activePeriod)
-        <div x-show="showEditDates" x-transition class="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-950/60 backdrop-blur-md p-4" style="display:none" x-cloak>
-            <form method="POST" action="{{ route('admin.settings.school-year.dates.update') }}" class="bg-white rounded-3xl p-8 max-w-lg w-full shadow-2xl space-y-6">
+        <div x-show="showEditDates" x-transition class="fixed inset-0 flex items-center justify-center bg-slate-950/70 p-4" style="z-index: 9999; display: none;" x-cloak>
+            <form id="updateDatesForm" method="POST" action="{{ route('admin.settings.school-year.dates.update') }}" class="bg-white rounded-3xl p-8 max-w-lg w-full shadow-2xl space-y-6">
                 @csrf
                 <input type="hidden" name="academic_period_id" value="{{ $activePeriod->id }}">
+                <input type="hidden" name="admin_password" value="">
                 <div class="flex items-start justify-between gap-4">
                     <div>
                         <h3 class="text-lg font-black text-slate-900">Update School Year Dates</h3>
                         <p class="text-xs font-semibold text-slate-500 mt-1">S.Y. {{ $activePeriod->school_year }}</p>
                     </div>
-                    <button type="button" @click="showEditDates = false" class="w-9 h-9 rounded-full bg-slate-100 text-slate-500"><i class="fa-solid fa-xmark"></i></button>
+                    <button type="button" @click="showEditDates = false" class="w-9 h-9 rounded-full bg-slate-100 text-slate-500 cursor-pointer"><i class="fa-solid fa-xmark"></i></button>
                 </div>
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
@@ -234,23 +319,24 @@
                     </div>
                 </div>
                 <div class="flex justify-end gap-3">
-                    <button type="button" @click="showEditDates = false" class="px-5 py-3 rounded-xl bg-slate-100 text-slate-700 text-xs font-black">Cancel</button>
-                    <button type="submit" class="px-5 py-3 rounded-xl bg-[#590d0d] text-white text-xs font-black"><i class="fa-solid fa-floppy-disk mr-1 text-amber-300"></i>Update Dates</button>
+                    <button type="button" @click="showEditDates = false" class="px-5 py-3 rounded-xl bg-slate-100 text-slate-700 text-xs font-black cursor-pointer">Cancel</button>
+                    <button type="button" @click="showEditDates = false; requestPassword('updateDatesForm', 'Confirm Update School Year Dates', 'Modifying active school year date range requires admin password verification.')" class="px-5 py-3 rounded-xl bg-[#590d0d] text-white text-xs font-black cursor-pointer flex items-center gap-1.5"><i class="fa-solid fa-shield-halved text-amber-300"></i>Update Dates</button>
                 </div>
             </form>
         </div>
     @endif
 
     <!-- Add School Year Modal -->
-    <div x-show="showAddSchoolYear" x-transition class="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-950/60 backdrop-blur-md p-4" style="display:none" x-cloak>
-        <form method="POST" action="{{ route('admin.school-year.periods.store') }}" class="bg-white rounded-3xl p-8 max-w-lg w-full shadow-2xl space-y-6">
+    <div x-show="showAddSchoolYear" x-transition class="fixed inset-0 flex items-center justify-center bg-slate-950/70 p-4" style="z-index: 9999; display: none;" x-cloak>
+        <form id="addSchoolYearForm" method="POST" action="{{ route('admin.school-year.periods.store') }}" class="bg-white rounded-3xl p-8 max-w-lg w-full shadow-2xl space-y-6">
             @csrf
+            <input type="hidden" name="admin_password" value="">
             <div class="flex items-start justify-between gap-4">
                 <div>
                     <h3 class="text-lg font-black text-slate-900">Add School Year</h3>
                     <p class="text-xs font-semibold text-slate-500 mt-1">The school-year label is generated from the selected dates.</p>
                 </div>
-                <button type="button" @click="showAddSchoolYear = false" class="w-9 h-9 rounded-full bg-slate-100 text-slate-500"><i class="fa-solid fa-xmark"></i></button>
+                <button type="button" @click="showAddSchoolYear = false" class="w-9 h-9 rounded-full bg-slate-100 text-slate-500 cursor-pointer"><i class="fa-solid fa-xmark"></i></button>
             </div>
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
@@ -263,21 +349,21 @@
                 </div>
             </div>
             <div class="flex justify-end gap-3">
-                <button type="button" @click="showAddSchoolYear = false" class="px-5 py-3 rounded-xl bg-slate-100 text-slate-700 text-xs font-black">Cancel</button>
-                <button type="submit" class="px-5 py-3 rounded-xl bg-[#590d0d] text-white text-xs font-black"><i class="fa-solid fa-plus mr-1 text-amber-300"></i>Add School Year</button>
+                <button type="button" @click="showAddSchoolYear = false" class="px-5 py-3 rounded-xl bg-slate-100 text-slate-700 text-xs font-black cursor-pointer">Cancel</button>
+                <button type="button" @click="showAddSchoolYear = false; requestPassword('addSchoolYearForm', 'Confirm Add School Year', 'Adding a new academic school year requires admin password verification.')" class="px-5 py-3 rounded-xl bg-[#590d0d] text-white text-xs font-black cursor-pointer flex items-center gap-1.5"><i class="fa-solid fa-shield-halved text-amber-300"></i>Add School Year</button>
             </div>
         </form>
     </div>
 
     <!-- All School Years Modal -->
-    <div x-show="showAllSchoolYears" x-transition class="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-950/60 backdrop-blur-md p-4" style="display:none" x-cloak>
+    <div x-show="showAllSchoolYears" x-transition class="fixed inset-0 flex items-center justify-center bg-slate-950/70 p-4" style="z-index: 9999; display: none;" x-cloak>
         <div @click.outside="showAllSchoolYears = false" class="bg-white rounded-3xl p-8 max-w-2xl w-full max-h-[85vh] overflow-y-auto shadow-2xl space-y-5">
             <div class="flex items-start justify-between gap-4">
                 <div>
                     <h3 class="text-lg font-black text-slate-900">All School Years</h3>
                     <p class="text-xs font-semibold text-slate-500 mt-1">Select a year from the list to review its date range.</p>
                 </div>
-                <button type="button" @click="showAllSchoolYears = false" class="w-9 h-9 rounded-full bg-slate-100 text-slate-500"><i class="fa-solid fa-xmark"></i></button>
+                <button type="button" @click="showAllSchoolYears = false" class="w-9 h-9 rounded-full bg-slate-100 text-slate-500 cursor-pointer"><i class="fa-solid fa-xmark"></i></button>
             </div>
             <div class="space-y-3">
                 @forelse($schoolYearGroups as $schoolYear => $yearPeriods)
@@ -304,6 +390,47 @@
             </div>
         </div>
     </div>
+
+    <!-- Security Confirmation Modal -->
+    <div x-show="securityModal" x-transition class="fixed inset-0 flex items-center justify-center bg-slate-950/70 p-4" style="z-index: 99999; display: none;" x-cloak>
+        <form @submit.prevent="submitAuthorizedAction()" @click.outside="securityModal = false" class="bg-white rounded-3xl border border-slate-100 p-8 max-w-md w-full shadow-2xl space-y-6 text-center relative animate-in fade-in zoom-in-95">
+            <div class="w-16 h-16 rounded-2xl mx-auto flex items-center justify-center text-2xl shadow-sm bg-amber-50 border border-amber-200 text-amber-600">
+                <i class="fa-solid fa-shield-halved"></i>
+            </div>
+
+            <div class="space-y-2">
+                <h3 class="text-base font-black text-slate-900 tracking-tight" x-text="actionTitle || 'Admin Password Verification'"></h3>
+                <p class="text-xs font-semibold text-slate-500 leading-relaxed" x-text="actionDesc || 'Please enter your administrator password to authorize this action.'"></p>
+            </div>
+
+            <div class="space-y-2 text-left">
+                <label class="block text-[11px] font-black uppercase tracking-wider text-slate-500">Admin Password</label>
+                <div class="relative">
+                    <input :type="showModalPassword ? 'text' : 'password'" id="settingsSecPasswordInput" x-model="adminPassword" @input="passwordError = false" @keydown.escape="securityModal = false" placeholder="Enter your current password..." 
+                           autocomplete="current-password"
+                           class="w-full bg-slate-50 border-2 rounded-2xl pl-4 pr-12 py-3.5 text-xs font-bold text-slate-900 focus:outline-none focus:bg-white transition"
+                           :class="passwordError ? 'border-red-500 bg-red-50/30' : 'border-slate-200 focus:border-[#8b1818]'">
+                    <button type="button" @click="showModalPassword = !showModalPassword" class="absolute inset-y-0 right-0 pr-4 flex items-center text-slate-400 hover:text-slate-600 cursor-pointer">
+                        <i class="fa-solid text-sm" :class="showModalPassword ? 'fa-eye-slash' : 'fa-eye'"></i>
+                    </button>
+                </div>
+                <p x-show="passwordError" class="text-red-600 text-xs font-bold mt-1" style="display: none;" x-cloak>Please enter your password to proceed.</p>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3 pt-2">
+                <button @click="securityModal = false" type="button" :disabled="isSubmitting" class="w-full py-3.5 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-black uppercase tracking-wider cursor-pointer transition">
+                    Cancel
+                </button>
+                <button type="submit" :disabled="isSubmitting" class="w-full py-3.5 rounded-2xl text-white text-xs font-black uppercase tracking-wider shadow-lg transition cursor-pointer flex items-center justify-center gap-2 bg-[#8b1818] hover:bg-[#731414] shadow-red-950/20">
+                    <span x-show="!isSubmitting">Confirm</span>
+                    <span x-show="isSubmitting" style="display: none;" class="flex items-center gap-1.5">
+                        <i class="fa-solid fa-spinner animate-spin text-xs"></i> Verifying...
+                    </span>
+                </button>
+            </div>
+        </form>
+    </div>
+
     </main>
 </div>
 @endsection

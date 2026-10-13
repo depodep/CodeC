@@ -2,8 +2,9 @@
 
 @section('content')
 <div class="w-full min-h-screen flex flex-col bg-slate-50" x-data="{
-    activeModal: null, // 'viewUser', 'viewSchedule', 'resetPassword', 'createUser', 'editUser'
+    activeModal: null, // 'viewUser', 'viewSchedule', 'resetPassword', 'createUser', 'editUser', 'deleteUser'
     selectedUser: null,
+    userToDelete: null,
     menuUser: null,
     menuPos: { top: 0, right: 0 },
     activeDayTab: 'ALL',
@@ -101,9 +102,9 @@
         this.selectedUser = user;
         const roleId = String(user.role_id || (user.role === 'admin' ? 1 : (user.role === 'teacher' ? 2 : 3)));
         let genderVal = user.gender_name;
-        if (!genderVal) {
-            const g = String(user.gender || '').toLowerCase();
-            genderVal = (g === '1' || g === 'male') ? 'Male' : ((g === '2' || g === 'female') ? 'Female' : '');
+        if (!genderVal || genderVal === 'Not Specified') {
+            const g = String(user.gender || '').toLowerCase().trim();
+            genderVal = (g === '1' || g === 'male' || g === 'm') ? 'Male' : ((g === '2' || g === 'female' || g === 'f') ? 'Female' : (user.gender || ''));
         }
 
         const isTeacher = (roleId === '2');
@@ -134,9 +135,15 @@
         };
         this.activeModal = 'editUser';
     },
+    promptDeleteUser(user) {
+        this.closeMenu();
+        this.userToDelete = user;
+        this.activeModal = 'deleteUser';
+    },
     closeModal() {
         this.activeModal = null;
         this.selectedUser = null;
+        this.userToDelete = null;
     },
     syncCreateDefaultPassword() {
         const defaultPass = this.getDefaultPasswordForRole(this.createForm.role_id);
@@ -188,11 +195,11 @@
     },
     formatGender(user) {
         if (!user) return 'Not Specified';
-        if (user.gender_name) return user.gender_name;
-        const g = String(user.gender || '').toLowerCase().trim();
-        if (g === '1' || g === 'male') return 'Male';
-        if (g === '2' || g === 'female') return 'Female';
-        return user.gender || 'Not Specified';
+        const raw = user.gender || user.gender_name || '';
+        const g = String(raw).toLowerCase().trim();
+        if (g === '1' || g === 'male' || g === 'm') return 'Male';
+        if (g === '2' || g === 'female' || g === 'f') return 'Female';
+        return (raw && raw !== 'Not Specified') ? raw : 'Not Specified';
     },
     formatFullName(user) {
         if (!user) return '';
@@ -246,10 +253,6 @@
             </div>
         </div>
         <div class="flex items-center gap-3">
-            <span class="hidden sm:inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-100 border border-slate-200 text-xs font-bold text-slate-600">
-                <i class="fa-solid fa-users text-[#8b1818]"></i>
-                {{ number_format($totalUsers ?? 0) }} total accounts
-            </span>
             <a href="{{ route('admin.users.export', ['type' => $roleFilter ?? 'admin']) }}" class="hidden sm:inline-flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black rounded-xl transition shadow-sm">
                 <i class="fa-solid fa-file-excel"></i> Export
             </a>
@@ -271,39 +274,6 @@
         </div>
     @endif
 
-    <!-- ACCOUNT MONITORING -->
-    <section class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
-        <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
-            <span class="text-[10px] font-black uppercase tracking-wider text-slate-400">Total Accounts</span>
-            <p class="mt-2 text-2xl font-black text-slate-900">{{ number_format($totalUsers ?? 0) }}</p>
-            <span class="text-[10px] font-bold text-slate-400">All registered users</span>
-        </div>
-        <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
-            <span class="text-[10px] font-black uppercase tracking-wider text-emerald-600">Students</span>
-            <p class="mt-2 text-2xl font-black text-emerald-700">{{ number_format($studentCount ?? 0) }}</p>
-            <span class="text-[10px] font-bold text-slate-400">{{ number_format($maleCount ?? 0) }} male · {{ number_format($femaleCount ?? 0) }} female</span>
-        </div>
-        <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
-            <span class="text-[10px] font-black uppercase tracking-wider text-blue-600">Faculty</span>
-            <p class="mt-2 text-2xl font-black text-blue-700">{{ number_format($facultyCount ?? 0) }}</p>
-            <span class="text-[10px] font-bold text-slate-400">Teachers and advisers</span>
-        </div>
-        <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
-            <span class="text-[10px] font-black uppercase tracking-wider text-purple-600">Management</span>
-            <p class="mt-2 text-2xl font-black text-purple-700">{{ number_format($managementCount ?? 0) }}</p>
-            <span class="text-[10px] font-bold text-slate-400">Management accounts</span>
-        </div>
-        <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
-            <span class="text-[10px] font-black uppercase tracking-wider text-amber-600">Active</span>
-            <p class="mt-2 text-2xl font-black text-amber-700">{{ number_format($activeUserCount ?? 0) }}</p>
-            <span class="text-[10px] font-bold text-slate-400">Accounts enabled</span>
-        </div>
-        <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
-            <span class="text-[10px] font-black uppercase tracking-wider text-rose-600">Inactive</span>
-            <p class="mt-2 text-2xl font-black text-rose-700">{{ number_format($inactiveUserCount ?? 0) }}</p>
-            <span class="text-[10px] font-bold text-slate-400">Accounts disabled</span>
-        </div>
-    </section>
 
     @if(session('error'))
         <div class="p-4 bg-rose-50 border border-rose-200 text-rose-800 text-xs font-bold rounded-2xl flex items-center justify-between shadow-xs">
@@ -839,8 +809,31 @@
 
         <!-- PAGINATION -->
         @if(isset($users) && method_exists($users, 'links'))
-            <div class="p-4 border-t border-slate-200 bg-slate-50/50">
-                {{ $users->links() }}
+            <div class="p-4 border-t border-slate-200 bg-slate-50/50 flex flex-col sm:flex-row items-center justify-between gap-3">
+                <span class="text-xs font-bold text-slate-500">
+                    Showing <span class="font-extrabold text-slate-800">{{ $users->firstItem() ?? 0 }}</span>
+                    to <span class="font-extrabold text-slate-800">{{ $users->lastItem() ?? 0 }}</span>
+                    of <span class="font-extrabold text-slate-800">{{ $users->total() }}</span> accounts
+                </span>
+                <div class="flex flex-wrap items-center justify-center gap-3">
+                    <form method="GET" action="{{ route('admin.users.index') }}" class="flex items-center gap-2">
+                        @foreach(request()->except(['page', 'per_page']) as $key => $value)
+                            @if(is_scalar($value))
+                                <input type="hidden" name="{{ $key }}" value="{{ $value }}">
+                            @endif
+                        @endforeach
+                        <label class="flex items-center gap-2 text-xs font-bold text-slate-500 whitespace-nowrap">
+                            Rows per page
+                            <select name="per_page" onchange="this.form.submit()"
+                                    class="px-2 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-black text-slate-700 focus:outline-none focus:border-[#8b1818] cursor-pointer">
+                                @foreach([10, 25, 50] as $size)
+                                    <option value="{{ $size }}" @selected(($perPage ?? 10) === $size)>{{ $size }}</option>
+                                @endforeach
+                            </select>
+                        </label>
+                    </form>
+                    {{ $users->links() }}
+                </div>
             </div>
         @endif
     </div>
@@ -906,14 +899,9 @@
 
                 <template x-if="menuUser.id != {{ auth()->id() }}">
                     <div class="py-1">
-                        <form :action="'{{ url('/admin/users') }}/' + menuUser.id" method="POST" 
-                              @submit="return confirm('Are you sure you want to permanently delete user account: ' + menuUser.first_name + ' ' + menuUser.last_name + '?');">
-                            @csrf
-                            <input type="hidden" name="_method" value="DELETE">
-                            <button type="submit" class="w-full text-left px-4 py-2.5 text-rose-600 hover:bg-rose-50 font-bold flex items-center gap-2 cursor-pointer">
-                                <i class="fa-solid fa-trash w-4"></i> Delete Account
-                            </button>
-                        </form>
+                        <button type="button" @click="promptDeleteUser(menuUser)" class="w-full text-left px-4 py-2.5 text-rose-600 hover:bg-rose-50 font-bold flex items-center gap-2 cursor-pointer">
+                            <i class="fa-solid fa-trash w-4"></i> Delete Account
+                        </button>
                     </div>
                 </template>
             </div>
@@ -962,12 +950,12 @@
                 <div class="space-y-5">
                     <div class="grid grid-cols-2 sm:grid-cols-3 gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-200 text-xs">
                         <div>
-                            <span class="text-[10px] uppercase font-black text-slate-400 block">Student ID / Employee ID</span>
+                            <span class="text-[10px] uppercase font-black text-slate-400 block" x-text="selectedUser.role_id == 3 ? 'Student ID' : 'Employee ID'"></span>
                             <span class="font-mono font-bold text-slate-800" x-text="selectedUser.student_id || selectedUser.id_number || 'N/A'"></span>
                         </div>
                         <div>
-                            <span class="text-[10px] uppercase font-black text-slate-400 block">LRN Number</span>
-                            <span class="font-mono font-bold text-slate-800" x-text="selectedUser.id_number || 'N/A'"></span>
+                            <span class="text-[10px] uppercase font-black text-slate-400 block" x-text="selectedUser.role_id == 3 ? 'LRN Number' : 'Institutional Email'"></span>
+                            <span class="font-bold text-slate-800 truncate block" :class="selectedUser.role_id == 3 ? 'font-mono' : ''" x-text="selectedUser.role_id == 3 ? (selectedUser.id_number || 'N/A') : (selectedUser.email || 'N/A')"></span>
                         </div>
                         <div>
                             <span class="text-[10px] uppercase font-black text-slate-400 block">Gender</span>
@@ -978,11 +966,11 @@
                             <span class="font-mono font-bold text-slate-800" x-text="selectedUser.phone_number || 'N/A'"></span>
                         </div>
                         <div>
-                            <span class="text-[10px] uppercase font-black text-slate-400 block">Grade Level</span>
-                            <span class="font-bold text-slate-800" x-text="selectedUser.grade_level ? 'Grade ' + selectedUser.grade_level : 'N/A'"></span>
+                            <span class="text-[10px] uppercase font-black text-slate-400 block" x-text="selectedUser.role_id == 3 ? 'Grade Level' : 'Role / Designation'"></span>
+                            <span class="font-bold text-slate-800" x-text="selectedUser.role_id == 3 ? (selectedUser.grade_level ? 'Grade ' + selectedUser.grade_level : 'N/A') : (selectedUser.role?.name || (selectedUser.role_id == 2 ? 'Faculty Teacher' : 'Management'))"></span>
                         </div>
                         <div>
-                            <span class="text-[10px] uppercase font-black text-slate-400 block">Section / Office</span>
+                            <span class="text-[10px] uppercase font-black text-slate-400 block" x-text="selectedUser.role_id == 3 ? 'Section' : 'Advisory / Office'"></span>
                             <span class="font-bold text-slate-800" x-text="selectedUser.section || 'N/A'"></span>
                         </div>
                     </div>
@@ -1793,6 +1781,91 @@
                     </div>
                 </form>
             </template>
+        </div>
+    </div>
+
+    <!-- ===================================================================== -->
+    <!-- MODAL 6: DELETE ACCOUNT CONFIRMATION MODAL                           -->
+    <!-- ===================================================================== -->
+    <div x-show="activeModal === 'deleteUser'" 
+         x-transition:enter="transition ease-out duration-200"
+         x-transition:enter-start="opacity-0 scale-95"
+         x-transition:enter-end="opacity-100 scale-100"
+         x-transition:leave="transition ease-in duration-150"
+         x-transition:leave-start="opacity-100 scale-100"
+         x-transition:leave-end="opacity-0 scale-95"
+         class="fixed inset-0 z-50 overflow-y-auto bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4"
+         style="display: none;">
+        
+        <div class="bg-white rounded-3xl border-2 border-slate-200 max-w-md w-full p-6 sm:p-8 space-y-5 shadow-2xl relative"
+             @click.away="closeModal()">
+            
+            <button @click="closeModal()" class="absolute top-5 right-5 w-9 h-9 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center transition cursor-pointer">
+                <i class="fa-solid fa-xmark text-sm"></i>
+            </button>
+
+            <!-- Header Icon & Title -->
+            <div class="text-center space-y-2">
+                <div class="w-16 h-16 rounded-2xl bg-rose-50 border-2 border-rose-200 text-rose-600 flex items-center justify-center text-2xl mx-auto shadow-xs">
+                    <i class="fa-solid fa-triangle-exclamation"></i>
+                </div>
+                <h3 class="text-lg font-black text-slate-900 tracking-tight">Delete Account Confirmation</h3>
+                <p class="text-xs text-slate-500 font-semibold leading-relaxed">
+                    Are you sure you want to permanently delete this user account? This action cannot be undone.
+                </p>
+            </div>
+
+            <!-- Target User Details Card -->
+            <template x-if="userToDelete">
+                <div class="p-4 rounded-2xl bg-slate-50 border border-slate-200 text-xs space-y-2 text-left">
+                    <div class="flex items-center justify-between">
+                        <span class="text-[10px] uppercase font-black text-slate-400">Account Name</span>
+                        <span class="font-black text-slate-900" x-text="formatFullName(userToDelete)"></span>
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <span class="text-[10px] uppercase font-black text-slate-400">Account ID</span>
+                        <span class="font-mono font-bold text-slate-700" x-text="userToDelete.id_number || ('ID #' + userToDelete.id)"></span>
+                    </div>
+                    <div class="flex items-center justify-between" x-show="userToDelete.email">
+                        <span class="text-[10px] uppercase font-black text-slate-400">Email Address</span>
+                        <span class="font-bold text-slate-700 truncate max-w-[200px]" x-text="userToDelete.email"></span>
+                    </div>
+                </div>
+            </template>
+
+            <!-- NFC Warning Reminder (If user has a bound NFC card) -->
+            <template x-if="userToDelete && ((userToDelete.nfc_card && userToDelete.nfc_card.tag_id) || (userToDelete.nfcCard && userToDelete.nfcCard.tag_id))">
+                <div class="p-4 rounded-2xl bg-amber-50 border-2 border-amber-300 text-amber-950 space-y-1.5 text-left">
+                    <div class="flex items-center gap-2 font-black text-xs text-amber-900">
+                        <i class="fa-solid fa-id-card text-amber-600 text-sm"></i>
+                        <span>Bound NFC Card Warning</span>
+                    </div>
+                    <p class="text-[11px] font-bold text-amber-800 leading-relaxed">
+                        This account currently has a bound NFC card (<span class="font-mono font-black text-amber-950 bg-amber-100 px-1.5 py-0.5 rounded border border-amber-300" x-text="'UID: ' + ((userToDelete.nfc_card?.tag_id) || (userToDelete.nfcCard?.tag_id))"></span>).
+                    </p>
+                    <p class="text-[11px] font-black text-rose-700 flex items-center gap-1.5 pt-0.5">
+                        <i class="fa-solid fa-circle-exclamation text-xs"></i>
+                        <span>Deleting this account will permanently remove and unbind the NFC card from system records.</span>
+                    </p>
+                </div>
+            </template>
+
+            <!-- Actions Buttons -->
+            <div class="grid grid-cols-2 gap-3 pt-1">
+                <button type="button" @click="closeModal()" class="w-full py-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-black text-xs transition cursor-pointer">
+                    Cancel
+                </button>
+                <template x-if="userToDelete">
+                    <form :action="'{{ url('/admin/users') }}/' + userToDelete.id" method="POST" class="w-full"
+                          @submit="return confirm('Are you sure you want to permanently delete ' + (userToDelete ? (userToDelete.first_name + ' ' + userToDelete.last_name) : 'this account') + '? This action cannot be undone.');">
+                        @csrf
+                        <input type="hidden" name="_method" value="DELETE">
+                        <button type="submit" class="w-full py-3 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-black text-xs transition shadow-md cursor-pointer flex items-center justify-center gap-1.5">
+                            <i class="fa-solid fa-trash text-xs"></i> Delete Account
+                        </button>
+                    </form>
+                </template>
+            </div>
         </div>
     </div>
 

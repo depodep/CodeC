@@ -8,7 +8,6 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Schema;
 use App\Models\User;
 use App\Models\AcademicSection;
-use App\Models\ClassSchedule;
 
 class DemoDataSeeder extends Seeder
 {
@@ -56,9 +55,10 @@ class DemoDataSeeder extends Seeder
 
         $cols = Schema::getColumnListing('users');
 
-        // 2. SEED 3 TEACHERS
+        // 2. SEED THE ORIGINAL 3 DEMO TEACHERS
         $teachersData = [
                 [
+                    'teacher_key'  => 'juan',
                     'first_name'   => 'Juan',
                     'last_name'    => 'Dela Cruz',
                     'middle_name'  => 'Reyes',
@@ -71,6 +71,7 @@ class DemoDataSeeder extends Seeder
                     'strand'       => null,
                 ],
                 [
+                    'teacher_key'  => 'maria',
                     'first_name'   => 'Maria',
                     'last_name'    => 'Santos',
                     'middle_name'  => 'Garcia',
@@ -83,6 +84,7 @@ class DemoDataSeeder extends Seeder
                     'strand'       => null,
                 ],
                 [
+                    'teacher_key'  => 'ramon',
                     'first_name'   => 'Ramon',
                     'last_name'    => 'Magsaysay',
                     'middle_name'  => 'Del Rosario',
@@ -118,7 +120,7 @@ class DemoDataSeeder extends Seeder
                 if (in_array('academic_period_id', $cols)) $uData['academic_period_id'] = $activePeriodId;
 
                 $user = User::create($uData);
-                $createdTeachers[$t['section_name']] = $user;
+                $createdTeachers[$t['teacher_key']] = $user;
             }
 
             // 3. SEED 3 ACADEMIC SECTIONS
@@ -127,19 +129,19 @@ class DemoDataSeeder extends Seeder
                     'grade_level'  => '7',
                     'section_name' => 'Sapphire',
                     'strand'       => null,
-                    'advisor_id'   => $createdTeachers['Sapphire']->id,
+                    'advisor_id'   => $createdTeachers['juan']->id,
                 ],
                 [
                     'grade_level'  => '8',
                     'section_name' => 'Emerald',
                     'strand'       => null,
-                    'advisor_id'   => $createdTeachers['Emerald']->id,
+                    'advisor_id'   => $createdTeachers['maria']->id,
                 ],
                 [
                     'grade_level'  => '11',
                     'section_name' => 'STEM A',
                     'strand'       => 'STEM',
-                    'advisor_id'   => $createdTeachers['STEM A']->id,
+                    'advisor_id'   => $createdTeachers['ramon']->id,
                 ],
             ];
 
@@ -199,6 +201,7 @@ class DemoDataSeeder extends Seeder
             ];
 
             $studentCounter = 1;
+            $testEmergencyContact = '09261074274';
             foreach ($studentNames as $secName => $list) {
                 $targetSectionObj = $createdSections[$secName];
 
@@ -207,7 +210,7 @@ class DemoDataSeeder extends Seeder
                     $studentIdNum = 'STU-2026-' . str_pad($studentCounter, 3, '0', STR_PAD_LEFT);
                     $email = strtolower($st['fn'] . '.' . str_replace(' ', '', $st['ln'])) . '@siatrack.edu.ph';
                     $phone = '092610' . str_pad($studentCounter, 5, '0', STR_PAD_LEFT);
-                    $pPhone = '091810' . str_pad($studentCounter, 5, '0', STR_PAD_LEFT);
+                    $pPhone = $testEmergencyContact;
 
                     $uData = [
                         'email'    => $email,
@@ -248,139 +251,6 @@ class DemoDataSeeder extends Seeder
                 }
             }
 
-            // 5. SEED CROSS-SECTION CLASS SCHEDULES
-            // Teachers teach in each other's sections!
-            // Teacher 1 (Juan): Mathematics Specialist (Teaches in Sapphire, Emerald, STEM A)
-            // Teacher 2 (Maria): Science Specialist (Teaches in Sapphire, Emerald, STEM A)
-            // Teacher 3 (Ramon): English & Tech Specialist (Teaches in Sapphire, Emerald, STEM A)
-
-            $t1 = $createdTeachers['Sapphire'];
-            $t2 = $createdTeachers['Emerald'];
-            $t3 = $createdTeachers['STEM A'];
-
-            $secSapphire = $createdSections['Sapphire'];
-            $secEmerald  = $createdSections['Emerald'];
-            $secStem     = $createdSections['STEM A'];
-
-            $schedules = [
-                // --- SECTION 1: Sapphire (Grade 7) ---
-                [
-                    'teacher_id'   => $t1->id, // Teacher 1 (Juan)
-                    'section_id'   => $secSapphire->id,
-                    'subject_name' => 'Mathematics 7',
-                    'subject_code' => 'MATH-7',
-                    'grade_level'  => '7',
-                    'strand'       => null,
-                    'section'      => 'Sapphire',
-                    'day'          => 'Monday',
-                    'start_time'   => '08:00:00',
-                    'end_time'     => '09:30:00',
-                ],
-                [
-                    'teacher_id'   => $t2->id, // Teacher 2 (Maria) - Teaching in Sapphire!
-                    'section_id'   => $secSapphire->id,
-                    'subject_name' => 'Science 7',
-                    'subject_code' => 'SCI-7',
-                    'grade_level'  => '7',
-                    'strand'       => null,
-                    'section'      => 'Sapphire',
-                    'day'          => 'Monday',
-                    'start_time'   => '09:45:00',
-                    'end_time'     => '11:15:00',
-                ],
-                [
-                    'teacher_id'   => $t3->id, // Teacher 3 (Ramon) - Teaching in Sapphire!
-                    'section_id'   => $secSapphire->id,
-                    'subject_name' => 'English 7',
-                    'subject_code' => 'ENG-7',
-                    'grade_level'  => '7',
-                    'strand'       => null,
-                    'section'      => 'Sapphire',
-                    'day'          => 'Monday',
-                    'start_time'   => '13:00:00',
-                    'end_time'     => '14:30:00',
-                ],
-
-                // --- SECTION 2: Emerald (Grade 8) ---
-                [
-                    'teacher_id'   => $t2->id, // Teacher 2 (Maria)
-                    'section_id'   => $secEmerald->id,
-                    'subject_name' => 'Science 8',
-                    'subject_code' => 'SCI-8',
-                    'grade_level'  => '8',
-                    'strand'       => null,
-                    'section'      => 'Emerald',
-                    'day'          => 'Tuesday',
-                    'start_time'   => '08:00:00',
-                    'end_time'     => '09:30:00',
-                ],
-                [
-                    'teacher_id'   => $t1->id, // Teacher 1 (Juan) - Teaching in Emerald!
-                    'section_id'   => $secEmerald->id,
-                    'subject_name' => 'Mathematics 8',
-                    'subject_code' => 'MATH-8',
-                    'grade_level'  => '8',
-                    'strand'       => null,
-                    'section'      => 'Emerald',
-                    'day'          => 'Tuesday',
-                    'start_time'   => '09:45:00',
-                    'end_time'     => '11:15:00',
-                ],
-                [
-                    'teacher_id'   => $t3->id, // Teacher 3 (Ramon) - Teaching in Emerald!
-                    'section_id'   => $secEmerald->id,
-                    'subject_name' => 'English 8',
-                    'subject_code' => 'ENG-8',
-                    'grade_level'  => '8',
-                    'strand'       => null,
-                    'section'      => 'Emerald',
-                    'day'          => 'Tuesday',
-                    'start_time'   => '13:00:00',
-                    'end_time'     => '14:30:00',
-                ],
-
-                // --- SECTION 3: STEM A (Grade 11) ---
-                [
-                    'teacher_id'   => $t3->id, // Teacher 3 (Ramon)
-                    'section_id'   => $secStem->id,
-                    'subject_name' => 'Empowerment Technologies',
-                    'subject_code' => 'EMP-TECH',
-                    'grade_level'  => '11',
-                    'strand'       => 'STEM',
-                    'section'      => 'STEM A',
-                    'day'          => 'Wednesday',
-                    'start_time'   => '08:00:00',
-                    'end_time'     => '09:30:00',
-                ],
-                [
-                    'teacher_id'   => $t1->id, // Teacher 1 (Juan) - Teaching in STEM A!
-                    'section_id'   => $secStem->id,
-                    'subject_name' => 'General Mathematics',
-                    'subject_code' => 'GEN-MATH',
-                    'grade_level'  => '11',
-                    'strand'       => 'STEM',
-                    'section'      => 'STEM A',
-                    'day'          => 'Wednesday',
-                    'start_time'   => '09:45:00',
-                    'end_time'     => '11:15:00',
-                ],
-                [
-                    'teacher_id'   => $t2->id, // Teacher 2 (Maria) - Teaching in STEM A!
-                    'section_id'   => $secStem->id,
-                    'subject_name' => 'General Chemistry 1',
-                    'subject_code' => 'CHEM-1',
-                    'grade_level'  => '11',
-                    'strand'       => 'STEM',
-                    'section'      => 'STEM A',
-                    'day'          => 'Wednesday',
-                    'start_time'   => '13:00:00',
-                    'end_time'     => '14:30:00',
-                ],
-            ];
-
-            foreach ($schedules as $sched) {
-                $sched['academic_period_id'] = $activePeriodId;
-                ClassSchedule::create($sched);
-            }
+            $this->call(DemoScheduleCompletionSeeder::class);
     }
 }

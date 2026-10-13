@@ -9,22 +9,17 @@
             <p class="text-xs text-slate-500 font-semibold mt-0.5">Manage institutional student, faculty, management, and administrator directory records</p>
         </div>
         <div class="flex items-center gap-3">
-            <a href="#" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition flex items-center gap-2 shadow-xs">
+            <a href="{{ route('admin.users.export') }}" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition flex items-center gap-2 shadow-xs">
                 <i class="fa-solid fa-file-excel"></i> Export CSV
             </a>
-            <a href="#" class="px-4 py-2 bg-[#8b1818] hover:bg-opacity-90 text-white text-xs font-bold rounded-xl transition flex items-center gap-2 shadow-xs">
+            <a href="{{ route('admin.users.create') }}" class="px-4 py-2 bg-[#8b1818] hover:bg-opacity-90 text-white text-xs font-bold rounded-xl transition flex items-center gap-2 shadow-xs">
                 <i class="fa-solid fa-user-plus"></i> Add New User
             </a>
         </div>
     </div>
 
     <!-- Search Bar & Filters Section -->
-    <div class="bg-white p-4 rounded-3xl border-2 border-slate-200 shadow-xs mb-6 flex flex-col md:flex-row items-center justify-between gap-4">
-        <div class="flex items-center gap-2 overflow-x-auto w-full md:w-auto pb-2 md:pb-0">
-            <span class="px-3 py-1.5 bg-slate-100 text-slate-800 text-xs font-black rounded-xl border border-slate-200">
-                Total Accounts: {{ $users->count() ?? 0 }}
-            </span>
-        </div>
+    <div class="bg-white p-4 rounded-3xl border-2 border-slate-200 shadow-xs mb-6 flex flex-col md:flex-row items-center justify-end gap-4">
         <div class="w-full md:w-80 relative">
             <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
                 <i class="fa-solid fa-search text-xs"></i>
@@ -81,7 +76,7 @@
                                 {{ $user->email ?? 'No email provided' }}
                             </td>
                             <td class="py-4 px-6 text-right space-x-2">
-                                <a href="#" class="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 inline-flex items-center justify-center transition">
+                                <a href="{{ route('admin.users.index') }}" class="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 inline-flex items-center justify-center transition" title="Manage in Users">
                                     <i class="fa-solid fa-pen text-xs"></i>
                                 </a>
                             </td>

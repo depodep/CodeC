@@ -12,6 +12,9 @@ class AttendanceLog extends Model
         'academic_period_id',
         'class_schedule_id',
         'nfc_card_id',
+        'attendance_type',
+        'advisory_section_id',
+        'recorded_by',
         'scanned_at',
         'status',
     ];

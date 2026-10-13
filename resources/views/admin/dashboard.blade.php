@@ -1,4 +1,4 @@
-﻿@extends('layouts.app')
+@extends('layouts.app')
 
 @section('title', 'Admin Dashboard - SIATRACK')
 
@@ -211,8 +211,8 @@
 
                 <!-- View Details Action -->
                 <div class="pt-4 border-t border-slate-100 flex items-center justify-end">
-                    <a href="{{ route('admin.evaluations.monitoring') }}" class="inline-flex items-center gap-1.5 text-xs font-black text-[#590d0d] hover:underline">
-                        <span>View Details</span>
+                    <a href="{{ route('admin.evaluations.periods') }}" class="inline-flex items-center gap-1.5 text-xs font-black text-[#590d0d] hover:underline">
+                        <span>Manage Evaluations</span>
                         <i class="fa-solid fa-arrow-right text-[10px]"></i>
                     </a>
                 </div>

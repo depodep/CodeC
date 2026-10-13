@@ -32,7 +32,18 @@
                     $resultLabels = ['student' => 'Student', 'principal' => 'Principal', 'self' => 'Self', 'peer' => 'Peer'];
                 @endphp
                 <div class="bg-white border-2 border-emerald-200 rounded-3xl p-6 shadow-xs space-y-5">
-                    <div class="flex items-start gap-4"><div class="w-11 h-11 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0"><i class="fa-solid fa-ranking-star"></i></div><div><h2 class="text-base font-black text-emerald-900">Your evaluation result is published</h2><p class="text-xs text-emerald-700 font-semibold mt-1">Thank you for completing your evaluation. The administrator has published your result.</p></div></div>
+                    <div class="flex items-start justify-between gap-4 flex-wrap">
+                        <div class="flex items-start gap-4">
+                            <div class="w-11 h-11 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0"><i class="fa-solid fa-ranking-star"></i></div>
+                            <div>
+                                <h2 class="text-base font-black text-emerald-900">Your evaluation result is published</h2>
+                                <p class="text-xs text-emerald-700 font-semibold mt-1">Thank you for completing your evaluation. The administrator has published your result.</p>
+                            </div>
+                        </div>
+                        <a href="{{ route('teacher.evaluations.results') }}" class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#8b1818] text-white font-black text-xs uppercase tracking-wider hover:bg-[#7a1414] transition shrink-0">
+                            <i class="fa-solid fa-chart-bar"></i> View Full Results
+                        </a>
+                    </div>
                     <div class="flex items-end gap-2 border-t border-slate-100 pt-4"><span class="text-4xl font-black text-[#8b1818]">{{ number_format($result->weighted_score, 2) }}</span><span class="text-sm font-bold text-slate-400 mb-1">/ 100 weighted score</span></div>
                     <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
                         @foreach($resultLabels as $type => $label)
@@ -42,7 +53,18 @@
                     </div>
                 </div>
             @else
-                <div class="p-6 bg-emerald-50 border-2 border-emerald-200 rounded-2xl flex items-start gap-4"><div class="w-11 h-11 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0"><i class="fa-solid fa-circle-check"></i></div><div><h2 class="text-base font-black text-emerald-900">Evaluation completed. Thank you!</h2><p class="text-xs text-emerald-700 font-semibold mt-1">Your Peer and Self evaluations have been saved. Please wait for the administrator to publish the evaluation results.</p><div class="flex flex-wrap gap-2 mt-3 text-[10px] font-black uppercase tracking-wider"><span class="px-2.5 py-1 rounded-full bg-white text-emerald-700 border border-emerald-200"><i class="fa-solid fa-check mr-1"></i> Peer Done</span><span class="px-2.5 py-1 rounded-full bg-white text-emerald-700 border border-emerald-200"><i class="fa-solid fa-check mr-1"></i> Self Done</span></div></div></div>
+                <div class="p-6 bg-emerald-50 border-2 border-emerald-200 rounded-2xl flex items-start gap-4">
+                    <div class="w-11 h-11 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0"><i class="fa-solid fa-circle-check"></i></div>
+                    <div class="flex-1">
+                        <h2 class="text-base font-black text-emerald-900">Evaluation completed. Thank you!</h2>
+                        <p class="text-xs text-emerald-700 font-semibold mt-1">Your Peer and Self evaluations have been saved. Please wait for the administrator to publish the evaluation results.</p>
+                        <div class="flex flex-wrap gap-2 mt-3 text-[10px] font-black uppercase tracking-wider">
+                            <span class="px-2.5 py-1 rounded-full bg-white text-emerald-700 border border-emerald-200"><i class="fa-solid fa-check mr-1"></i> Peer Done</span>
+                            <span class="px-2.5 py-1 rounded-full bg-white text-emerald-700 border border-emerald-200"><i class="fa-solid fa-check mr-1"></i> Self Done</span>
+                            <span class="px-2.5 py-1 rounded-full bg-amber-100 text-amber-700 border border-amber-200"><i class="fa-solid fa-hourglass-half mr-1"></i> Awaiting Publication</span>
+                        </div>
+                    </div>
+                </div>
             @endif
         @elseif(!$evaluationActive)
             @if($evaluationCompleted)

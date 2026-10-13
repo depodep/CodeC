@@ -41,6 +41,7 @@ class CheckRole
         // 3. Eksaktong mapping para sa apat na roles
         $targetMap = [
             'admin'      => [1, 'admin'],
+            'attendance' => [1, 2, 'admin', 'faculty', 'teacher'],
             'director'   => [4, 'director', 'management'],
             'management' => [4, 'management', 'director'],
             'faculty'    => [2, 'faculty', 'teacher'],

@@ -20,6 +20,8 @@
          successModal: {{ session('success') ? 'true' : 'false' }},
          errorModal: {{ session('error') && !str_contains(strtolower(session('error')), 'password') ? 'true' : 'false' }},
          academicYear: @js($activeSchoolYear),
+         pendingStartDate: '',
+         pendingEndDate: '',
 
          updateSchoolYearPreview() {
              if (!this.startDate || !this.endDate) return '';
@@ -34,7 +36,7 @@
          },
 
          triggerSecurity(type) {
-             if (!this.validateFormat()) {
+             if (type === 'update' && !this.validateFormat()) {
                  this.formatError = true;
                  return;
              }
@@ -49,6 +51,16 @@
                  let input = document.getElementById('modalSecPasswordInput');
                  if(input) input.focus();
              }, 50);
+         },
+
+         triggerAddPeriod() {
+             if (!this.startDate || !this.endDate) {
+                 alert('Please select both Start Date and End Date.');
+                 return;
+             }
+             this.pendingStartDate = this.startDate;
+             this.pendingEndDate = this.endDate;
+             this.triggerSecurity('addPeriod');
          },
 
          submitAction() {
@@ -69,6 +81,16 @@
                  let mainForm = document.getElementById('syUpdateForm');
                  if (mainForm) {
                      mainForm.submit();
+                 } else {
+                     this.isSubmitting = false;
+                     alert('Form not found.');
+                 }
+             } else if (this.actionType === 'addPeriod') {
+                 let addPwInput = document.getElementById('add_period_admin_password');
+                 if (addPwInput) addPwInput.value = this.adminPassword;
+                 let addForm = document.getElementById('addPeriodForm');
+                 if (addForm) {
+                     addForm.submit();
                  } else {
                      this.isSubmitting = false;
                      alert('Form not found.');
@@ -104,7 +126,7 @@
     </header>
 
     <!-- Main Content Container -->
-    <main class="p-8 lg:p-16 w-full max-w-6xl mx-auto space-y-10 flex-1 flex flex-col justify-center">
+    <main class="p-8 lg:p-16 w-full max-w-6xl mx-auto space-y-10 flex-1">
         
         <!-- Professional Active Period Management Card -->
         <div class="bg-white rounded-3xl border border-slate-200/80 p-10 lg:p-14 shadow-2xl shadow-slate-200/60 space-y-10 w-full">
@@ -164,9 +186,10 @@
     <!-- ================= FULL-SCREEN MODALS ================= -->
 
     <!-- Add School Year Modal -->
-    <div x-show="showAddPeriod" x-transition class="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-950/60 backdrop-blur-md p-4" style="display: none;" x-cloak>
-        <form method="POST" action="{{ route('admin.school-year.periods.store') }}" class="bg-white rounded-3xl border border-slate-100 p-8 max-w-lg w-full shadow-2xl space-y-6">
+    <div x-show="showAddPeriod" x-transition class="fixed inset-0 flex items-center justify-center bg-slate-950/70 p-4" style="z-index: 9999; display: none;" x-cloak>
+        <form id="addPeriodForm" method="POST" action="{{ route('admin.school-year.periods.store') }}" class="bg-white rounded-3xl border border-slate-100 p-8 max-w-lg w-full shadow-2xl space-y-6">
             @csrf
+            <input type="hidden" name="admin_password" id="add_period_admin_password">
             <div class="flex items-start justify-between gap-4">
                 <div>
                     <h3 class="text-lg font-black text-slate-900">Add School Year</h3>
@@ -194,13 +217,15 @@
             </div>
             <div class="flex justify-end gap-3">
                 <button type="button" @click="showAddPeriod = false" class="px-5 py-3 rounded-2xl bg-slate-100 text-slate-700 text-xs font-black">Cancel</button>
-                <button type="submit" class="px-5 py-3 rounded-2xl bg-[#8b1818] text-white text-xs font-black shadow-lg"><i class="fa-solid fa-plus mr-2 text-amber-300"></i>Add School Year</button>
+                <button type="button" @click="showAddPeriod = false; triggerAddPeriod()" class="px-5 py-3 rounded-2xl bg-[#8b1818] text-white text-xs font-black shadow-lg flex items-center gap-2">
+                    <i class="fa-solid fa-shield-halved text-amber-300"></i> Add School Year
+                </button>
             </div>
         </form>
     </div>
 
     <!-- All School Years Modal -->
-    <div x-show="showSchoolYears" x-transition class="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-950/60 backdrop-blur-md p-4" style="display: none;" x-cloak>
+    <div x-show="showSchoolYears" x-transition class="fixed inset-0 flex items-center justify-center bg-slate-950/70 p-4" style="z-index: 9999; display: none;" x-cloak>
         <div @click.outside="showSchoolYears = false" class="bg-white rounded-3xl border border-slate-100 p-8 max-w-2xl w-full max-h-[85vh] overflow-y-auto shadow-2xl space-y-6">
             <div class="flex items-start justify-between gap-4">
                 <div>
@@ -243,7 +268,7 @@
     </div>
 
     <!-- General Error Modal Popup -->
-    <div x-show="errorModal" x-transition class="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-950/60 backdrop-blur-md p-4" style="display: none;" x-cloak>
+    <div x-show="errorModal" x-transition class="fixed inset-0 flex items-center justify-center bg-slate-950/70 p-4" style="z-index: 9999; display: none;" x-cloak>
         <div @click.outside="errorModal = false" class="bg-white border border-slate-100 shadow-2xl rounded-3xl p-10 max-w-md w-full text-center space-y-6 animate-in fade-in zoom-in-95">
             <div class="w-20 h-20 rounded-2xl bg-red-50 border border-red-200 text-red-600 flex items-center justify-center text-3xl mx-auto shadow-sm">
                 <i class="fa-solid fa-triangle-exclamation"></i>
@@ -261,7 +286,7 @@
     </div>
 
     <!-- Success Modal -->
-    <div x-show="successModal" x-transition class="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-950/60 backdrop-blur-md p-4" style="display: none;" x-cloak>
+    <div x-show="successModal" x-transition class="fixed inset-0 flex items-center justify-center bg-slate-950/70 p-4" style="z-index: 9999; display: none;" x-cloak>
         <div @click.outside="successModal = false" class="bg-white border border-slate-100 shadow-2xl rounded-3xl p-10 max-w-md w-full text-center space-y-6 animate-in fade-in zoom-in-95">
             <div class="w-20 h-20 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-600 flex items-center justify-center text-3xl mx-auto shadow-sm">
                 <i class="fa-solid fa-circle-check"></i>
@@ -279,7 +304,7 @@
     </div>
 
     <!-- Security Confirmation Modal (May Inline Password Error sa Baba) -->
-    <div x-show="securityModal" x-transition class="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-950/60 backdrop-blur-md p-4" style="display: none;" x-cloak>
+    <div x-show="securityModal" x-transition class="fixed inset-0 flex items-center justify-center bg-slate-950/70 p-4" style="z-index: 99999; display: none;" x-cloak>
         <form @submit.prevent="submitAction()" @click.outside="securityModal = false" class="bg-white rounded-3xl border border-slate-100 p-10 max-w-lg w-full shadow-2xl space-y-8 text-center relative animate-in fade-in zoom-in-95">
             
             <div class="w-20 h-20 rounded-2xl mx-auto flex items-center justify-center text-3xl shadow-sm bg-amber-50 border border-amber-200 text-amber-600">
@@ -287,9 +312,8 @@
             </div>
 
             <div class="space-y-3">
-                <h3 class="text-lg font-black text-slate-900 tracking-tight">Confirm Academic Period Change</h3>
-                <p class="text-xs font-semibold text-slate-500 leading-relaxed">
-                    You are about to change the active school year. Dashboards and reports will adjust while preserving past records as history.
+                <h3 class="text-lg font-black text-slate-900 tracking-tight" x-text="actionType === 'addPeriod' ? 'Confirm Add School Year' : 'Confirm Academic Period Change'"></h3>
+                <p class="text-xs font-semibold text-slate-500 leading-relaxed" x-text="actionType === 'addPeriod' ? 'You are about to add a new school year. Admin authorization is required.' : 'You are about to change the active school year. Dashboards and reports will adjust while preserving past records as history.'">
                 </p>
             </div>
 
@@ -310,8 +334,8 @@
             </div>
 
             <div class="border border-slate-100 p-4 rounded-2xl bg-slate-50 text-left text-xs font-bold text-slate-700 flex items-center justify-between">
-                <span>Target Period:</span>
-                <span class="text-[#8b1818] font-black text-sm" x-text="'A.Y. ' + academicYear"></span>
+                <span x-text="actionType === 'addPeriod' ? 'New School Year:' : 'Target Period:'"></span>
+                <span class="text-[#8b1818] font-black text-sm" x-text="actionType === 'addPeriod' ? (updateSchoolYearPreview() || 'Not set') : 'A.Y. ' + academicYear"></span>
             </div>
 
             <div class="grid grid-cols-2 gap-4 pt-2">

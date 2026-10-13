@@ -9,6 +9,9 @@ echo ==================================================
 :: Start Laravel Server
 start "SIATRACK Server" cmd /k "title Laravel Server && php artisan serve"
 
+:: Start the scheduled post-subject attendance monitor
+start "SIATRACK Scheduler" cmd /k "title SIATRACK Scheduler && php artisan schedule:work"
+
 :: Give Laravel a moment to start before the bridge posts card taps
 timeout /t 3 /nobreak >nul
 

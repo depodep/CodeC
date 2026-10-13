@@ -83,12 +83,12 @@
                             <span class="text-[13px]" x-show="!collapsed">NFC Management</span>
                         </a>
 
-                        <!-- SMS Sent Today -->
-                        <a href="{{ route('admin.sms.sent-today') }}" 
-                           class="group flex items-center gap-3.5 px-3.5 py-2.5 rounded-xl transition duration-150 {{ request()->routeIs('admin.sms.sent-today*') ? 'bg-amber-400 text-amber-950 shadow-md' : 'text-white hover:bg-red-900/50 hover:text-amber-200' }}"
-                           title="SMS Sent Today">
-                            <i class="fa-solid fa-comment-sms text-base {{ request()->routeIs('admin.sms.sent-today*') ? 'text-amber-950' : 'text-amber-300 group-hover:text-white' }}"></i>
-                            <span class="text-[13px]" x-show="!collapsed">SMS Sent Today</span>
+                        <!-- SMS Messages Gateway -->
+                        <a href="{{ route('admin.message') }}" 
+                           class="group flex items-center gap-3.5 px-3.5 py-2.5 rounded-xl transition duration-150 {{ request()->routeIs('admin.message*') ? 'bg-amber-400 text-amber-950 shadow-md' : 'text-white hover:bg-red-900/50 hover:text-amber-200' }}"
+                           title="SMS Messages">
+                            <i class="fa-solid fa-comments text-base {{ request()->routeIs('admin.message*') ? 'text-amber-950' : 'text-amber-300 group-hover:text-white' }}"></i>
+                            <span class="text-[13px]" x-show="!collapsed">SMS Messages</span>
                         </a>
                     </div>
                 </div>
@@ -98,18 +98,18 @@
                     <div class="space-y-1 text-sm font-bold">
                         
                         <!-- Attendance Monitoring with Sub-items (Fixed highlighting scope) -->
-                        <div x-data="{ open: {{ request()->routeIs('admin.attendance.live', 'admin.attendance.override') ? 'true' : 'false' }} }" class="space-y-1">
+                        <div x-data="{ open: {{ request()->routeIs('admin.attendance.live', 'admin.attendance.record') ? 'true' : 'false' }} }" class="space-y-1">
                             <button @click="open = !open" 
-                                class="w-full group flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-bold transition duration-150 {{ request()->routeIs('admin.attendance.live', 'admin.attendance.override') ? 'bg-red-900/80 text-amber-300' : 'text-white hover:bg-red-900/50 hover:text-amber-200' }}">
+                                class="w-full group flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-bold transition duration-150 {{ request()->routeIs('admin.attendance.live', 'admin.attendance.record') ? 'bg-red-900/80 text-amber-300' : 'text-white hover:bg-red-900/50 hover:text-amber-200' }}">
                                 <div class="flex items-center gap-3.5">
-                                    <i class="fa-solid fa-id-card-clip text-base {{ request()->routeIs('admin.attendance.live', 'admin.attendance.override') ? 'text-amber-300' : 'text-amber-300 group-hover:text-white' }}"></i>
+                                    <i class="fa-solid fa-id-card-clip text-base {{ request()->routeIs('admin.attendance.live', 'admin.attendance.record') ? 'text-amber-300' : 'text-amber-300 group-hover:text-white' }}"></i>
                                     <span class="text-[13px]" x-show="!collapsed">Attendance Monitoring</span>
                                 </div>
                                 <i class="fa-solid fa-chevron-down text-xs transition-transform duration-200" :class="open ? 'rotate-180' : ''" x-show="!collapsed"></i>
                             </button>
                             <div x-show="open && !collapsed" x-cloak class="pl-11 pr-2 space-y-1 py-1">
                                 <a href="{{ route('admin.attendance.live') }}" class="block py-1.5 px-3 rounded-lg text-xs font-bold {{ request()->routeIs('admin.attendance.live*') ? 'bg-amber-400 text-amber-950 font-black shadow-xs' : 'text-red-200/80 hover:text-amber-300 hover:bg-red-900/40' }} transition">Live Tap Feed</a>
-                                <a href="{{ route('admin.attendance.override') }}" class="block py-1.5 px-3 rounded-lg text-xs font-bold {{ request()->routeIs('admin.attendance.override*') ? 'bg-amber-400 text-amber-950 font-black shadow-xs' : 'text-red-200/80 hover:text-amber-300 hover:bg-red-900/40' }} transition">Manual Attendance Override</a>
+                                <a href="{{ route('admin.attendance.record') }}" class="block py-1.5 px-3 rounded-lg text-xs font-bold {{ request()->routeIs('admin.attendance.record*') ? 'bg-amber-400 text-amber-950 font-black shadow-xs' : 'text-red-200/80 hover:text-amber-300 hover:bg-red-900/40' }} transition">Attendance Record</a>
                             </div>
                         </div>
 
@@ -215,11 +215,11 @@
                         </a>
 
                         <!-- Message -->
-                        <a href="{{ route('teacher.messages') }}" 
-                           class="group flex items-center gap-3.5 px-3.5 py-2.5 rounded-xl transition duration-150 {{ request()->routeIs('teacher.messages*') ? 'bg-amber-400 text-amber-950 shadow-md' : 'text-white hover:bg-red-900/50 hover:text-amber-200' }}"
-                           title="Message">
-                            <i class="fa-solid fa-envelope text-base {{ request()->routeIs('teacher.messages*') ? 'text-amber-950' : 'text-amber-300 group-hover:text-white' }}"></i>
-                            <span class="text-[13px]" x-show="!collapsed">Message</span>
+                        <a href="{{ route('teacher.message') }}" 
+                           class="group flex items-center gap-3.5 px-3.5 py-2.5 rounded-xl transition duration-150 {{ request()->routeIs('teacher.message*') || request()->routeIs('teacher.messages*') ? 'bg-amber-400 text-amber-950 shadow-md' : 'text-white hover:bg-red-900/50 hover:text-amber-200' }}"
+                           title="SMS Messages">
+                            <i class="fa-solid fa-comments text-base {{ request()->routeIs('teacher.message*') || request()->routeIs('teacher.messages*') ? 'text-amber-950' : 'text-amber-300 group-hover:text-white' }}"></i>
+                            <span class="text-[13px]" x-show="!collapsed">SMS Messages</span>
                         </a>
 
                         <!-- Attendance -->
@@ -240,10 +240,18 @@
 
                         <!-- Faculty Evaluation -->
                         <a href="{{ route('teacher.evaluations.index') }}" 
-                           class="group flex items-center gap-3.5 px-3.5 py-2.5 rounded-xl transition duration-150 {{ request()->routeIs('teacher.evaluations*') ? 'bg-amber-400 text-amber-950 shadow-md' : 'text-white hover:bg-red-900/50 hover:text-amber-200' }}"
+                           class="group flex items-center gap-3.5 px-3.5 py-2.5 rounded-xl transition duration-150 {{ request()->routeIs('teacher.evaluations.index', 'teacher.evaluations.peer*', 'teacher.evaluations.self*') ? 'bg-amber-400 text-amber-950 shadow-md' : 'text-white hover:bg-red-900/50 hover:text-amber-200' }}"
                            title="Faculty Evaluation">
-                            <i class="fa-solid fa-star-half-stroke text-base {{ request()->routeIs('teacher.evaluations*') ? 'text-amber-950' : 'text-amber-300 group-hover:text-white' }}"></i>
+                            <i class="fa-solid fa-star-half-stroke text-base {{ request()->routeIs('teacher.evaluations.index', 'teacher.evaluations.peer*', 'teacher.evaluations.self*') ? 'text-amber-950' : 'text-amber-300 group-hover:text-white' }}"></i>
                             <span class="text-[13px]" x-show="!collapsed">Faculty Evaluation</span>
+                        </a>
+
+                        <!-- My Evaluation Results -->
+                        <a href="{{ route('teacher.evaluations.results') }}" 
+                           class="group flex items-center gap-3.5 px-3.5 py-2.5 rounded-xl transition duration-150 {{ request()->routeIs('teacher.evaluations.results', 'teacher.evaluation.report') ? 'bg-amber-400 text-amber-950 shadow-md' : 'text-white hover:bg-red-900/50 hover:text-amber-200' }}"
+                           title="My Evaluation Results">
+                            <i class="fa-solid fa-chart-bar text-base {{ request()->routeIs('teacher.evaluations.results', 'teacher.evaluation.report') ? 'text-amber-950' : 'text-amber-300 group-hover:text-white' }}"></i>
+                            <span class="text-[13px]" x-show="!collapsed">My Eval Results</span>
                         </a>
 
                         <!-- Manage Account -->
@@ -258,20 +266,69 @@
             
             {{-- ==================== STUDENT NAVIGATION ==================== --}}
             @elseif(auth()->user()->role_id === 3)
+                @php
+                    $sidebarEvalCycle = \Illuminate\Support\Facades\Schema::hasTable('evaluation_cycles')
+                        ? \Illuminate\Support\Facades\DB::table('evaluation_cycles')->where('status', 'active')->where('is_active', 1)->first()
+                        : null;
+                    $sidebarEvalOpen = (bool) $sidebarEvalCycle || \Illuminate\Support\Facades\Cache::get('evaluations_open', false);
+                @endphp
                 <div>
                     <p class="px-3 text-[10px] font-black uppercase tracking-wider text-red-200/60 mb-2" x-show="!collapsed">Student Portal</p>
                     <div class="space-y-1 text-sm font-bold">
+                        <!-- My Dashboard -->
                         <a href="{{ route('student.dashboard') }}" 
                            class="group flex items-center gap-3.5 px-3.5 py-2.5 rounded-xl transition duration-150 {{ request()->routeIs('student.dashboard*') ? 'bg-amber-400 text-amber-950 shadow-md' : 'text-white hover:bg-red-900/50 hover:text-amber-200' }}"
                            title="My Dashboard">
                             <i class="fa-solid fa-gauge text-base {{ request()->routeIs('student.dashboard*') ? 'text-amber-950' : 'text-amber-300 group-hover:text-white' }}"></i>
                             <span class="text-[13px]" x-show="!collapsed">My Dashboard</span>
                         </a>
+
+                        <!-- Class Schedules & Timetable -->
+                        <a href="{{ route('student.schedules') }}" 
+                           class="group flex items-center gap-3.5 px-3.5 py-2.5 rounded-xl transition duration-150 {{ request()->routeIs('student.schedules*') ? 'bg-amber-400 text-amber-950 shadow-md' : 'text-white hover:bg-red-900/50 hover:text-amber-200' }}"
+                           title="Class Schedules">
+                            <i class="fa-solid fa-calendar-days text-base {{ request()->routeIs('student.schedules*') ? 'text-amber-950' : 'text-amber-300 group-hover:text-white' }}"></i>
+                            <span class="text-[13px]" x-show="!collapsed">Class Schedules</span>
+                        </a>
+
+                        <!-- Attendance Records -->
                         <a href="{{ route('student.attendance') }}" 
                            class="group flex items-center gap-3.5 px-3.5 py-2.5 rounded-xl transition duration-150 {{ request()->routeIs('student.attendance*') ? 'bg-amber-400 text-amber-950 shadow-md' : 'text-white hover:bg-red-900/50 hover:text-amber-200' }}"
                            title="Attendance Records">
                             <i class="fa-solid fa-calendar-check text-base {{ request()->routeIs('student.attendance*') ? 'text-amber-950' : 'text-amber-300 group-hover:text-white' }}"></i>
                             <span class="text-[13px]" x-show="!collapsed">Attendance Records</span>
+                        </a>
+
+                        <!-- Faculty Evaluation -->
+                        @if($sidebarEvalOpen)
+                            <a href="{{ route('student.evaluations.index') }}" 
+                               class="group flex items-center justify-between px-3.5 py-2.5 rounded-xl transition duration-150 {{ request()->routeIs('student.evaluations*') ? 'bg-amber-400 text-amber-950 shadow-md' : 'text-white hover:bg-red-900/50 hover:text-amber-200' }}"
+                               title="Faculty Evaluation">
+                                <div class="flex items-center gap-3.5">
+                                    <i class="fa-solid fa-star-half-stroke text-base {{ request()->routeIs('student.evaluations*') ? 'text-amber-950' : 'text-amber-300 group-hover:text-white' }}"></i>
+                                    <span class="text-[13px]" x-show="!collapsed">Faculty Evaluation</span>
+                                </div>
+                                <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" x-show="!collapsed" title="Evaluation Active"></span>
+                            </a>
+                        @else
+                            <div class="group flex items-center justify-between px-3.5 py-2.5 rounded-xl text-white/40 cursor-not-allowed select-none"
+                                 title="Faculty evaluation is currently closed">
+                                <div class="flex items-center gap-3.5">
+                                    <i class="fa-solid fa-lock text-base text-red-300/40"></i>
+                                    <span class="text-[13px]" x-show="!collapsed">Faculty Evaluation</span>
+                                </div>
+                                <span class="px-1.5 py-0.5 rounded text-[9px] font-black uppercase bg-black/20 text-red-200/50" x-show="!collapsed">
+                                    Closed
+                                </span>
+                            </div>
+                        @endif
+
+                        <!-- Manage Account -->
+                        <a href="{{ route('student.profile.edit') }}" 
+                           class="group flex items-center gap-3.5 px-3.5 py-2.5 rounded-xl transition duration-150 {{ request()->routeIs('student.profile*') ? 'bg-amber-400 text-amber-950 shadow-md' : 'text-white hover:bg-red-900/50 hover:text-amber-200' }}"
+                           title="Manage Account">
+                            <i class="fa-solid fa-user-gear text-base {{ request()->routeIs('student.profile*') ? 'text-amber-950' : 'text-amber-300 group-hover:text-white' }}"></i>
+                            <span class="text-[13px]" x-show="!collapsed">Manage Account</span>
                         </a>
                     </div>
                 </div>

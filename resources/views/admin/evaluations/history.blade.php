@@ -138,18 +138,18 @@
                                         <span class="whitespace-nowrap">{{ \Carbon\Carbon::parse($c->start_date)->format('M d, Y') }} &ndash; {{ \Carbon\Carbon::parse($c->end_date)->format('M d, Y') }}</span>
                                     </div>
                                 </td>
-                                <td class="py-4 px-6 whitespace-nowrap">
-                                    <div class="flex items-center gap-1.5 whitespace-nowrap">
-                                        <span class="px-2 py-0.5 rounded-lg text-[10px] font-extrabold bg-emerald-50 text-emerald-800 border border-emerald-200 shrink-0 whitespace-nowrap" title="Student Submissions">
+                                <td class="py-4 px-6">
+                                    <div class="grid grid-cols-2 gap-1 w-fit">
+                                        <span class="px-2 py-0.5 rounded-lg text-[10px] font-extrabold bg-emerald-50 text-emerald-800 border border-emerald-200 whitespace-nowrap" title="Student Submissions">
                                             Student: {{ $c->student_count ?? 0 }}
                                         </span>
-                                        <span class="px-2 py-0.5 rounded-lg text-[10px] font-extrabold bg-blue-50 text-blue-800 border border-blue-200 shrink-0 whitespace-nowrap" title="Peer Submissions">
+                                        <span class="px-2 py-0.5 rounded-lg text-[10px] font-extrabold bg-blue-50 text-blue-800 border border-blue-200 whitespace-nowrap" title="Peer Submissions">
                                             Peer: {{ $c->peer_count ?? 0 }}
                                         </span>
-                                        <span class="px-2 py-0.5 rounded-lg text-[10px] font-extrabold bg-amber-50 text-amber-800 border border-amber-200 shrink-0 whitespace-nowrap" title="Self Submissions">
+                                        <span class="px-2 py-0.5 rounded-lg text-[10px] font-extrabold bg-amber-50 text-amber-800 border border-amber-200 whitespace-nowrap" title="Self Submissions">
                                             Self: {{ $c->self_count ?? 0 }}
                                         </span>
-                                        <span class="px-2 py-0.5 rounded-lg text-[10px] font-extrabold bg-purple-50 text-purple-800 border border-purple-200 shrink-0 whitespace-nowrap" title="Principal Submissions">
+                                        <span class="px-2 py-0.5 rounded-lg text-[10px] font-extrabold bg-purple-50 text-purple-800 border border-purple-200 whitespace-nowrap" title="Principal Submissions">
                                             Principal: {{ $c->principal_count ?? 0 }}
                                         </span>
                                     </div>
@@ -178,15 +178,7 @@
                                         <span>View Analytics</span>
                                     </a>
 
-                                    @if($c->status === 'active')
-                                        <form method="POST" action="{{ route('admin.evaluations.end-cycle', ['id' => $c->id]) }}" class="inline" onsubmit="return confirm('End evaluation cycle permanently? Submissions will be locked and saved to history.');">
-                                            @csrf
-                                            <button type="submit" class="px-3 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs inline-flex items-center gap-1.5 transition">
-                                                <i class="fa-solid fa-circle-stop text-[11px]"></i>
-                                                <span>End</span>
-                                            </button>
-                                        </form>
-                                    @endif
+
                                 </td>
                             </tr>
                         @empty

@@ -551,26 +551,6 @@
         </div>
         @endif
 
-        {{-- STATS ROW --}}
-        <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs">
-                <div class="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">Total Students</div>
-                <div class="text-2xl font-black text-slate-900">{{ $students->count() }}</div>
-            </div>
-            <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs">
-                <div class="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">Cards Bound</div>
-                <div class="text-2xl font-black text-[#8b1818]" x-text="registry.length"></div>
-            </div>
-            <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs">
-                <div class="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">Unbound</div>
-                <div class="text-2xl font-black text-amber-600" x-text="unboundStudents.length"></div>
-            </div>
-            <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs">
-                <div class="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">Coverage</div>
-                <div class="text-2xl font-black text-slate-900" x-text="allStudents.length > 0 ? Math.round((registry.length / allStudents.length) * 100) + '%' : '0%'"></div>
-            </div>
-        </div>
-
         {{-- ACTIVE NFC REGISTRY --}}
         <div class="bg-white rounded-3xl border border-slate-200 shadow-xs overflow-hidden">
             {{-- Registry header --}}
@@ -590,7 +570,7 @@
 
                 <div class="flex flex-wrap items-center gap-3 w-full sm:w-auto">
                     <div class="relative w-full sm:w-72">
-                        <input type="text" x-model="registrySearch"
+                        <input type="text" x-model="registrySearch" @input="registryPage = 1"
                                placeholder="Search name, LRN, or UID..."
                                class="w-full text-xs font-bold pl-9 pr-4 py-2.5 bg-slate-50 border-2 border-slate-200 rounded-xl focus:outline-none focus:border-[#8b1818] focus:bg-white transition">
                         <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
@@ -599,19 +579,19 @@
                             <i class="fa-solid fa-xmark text-xs"></i>
                         </button>
                     </div>
-                    <select x-model="registrySection"
-                            @change="registrySection = availableRegistrySections.includes(registrySection) ? registrySection : ''"
-                            class="text-xs font-bold px-3 py-2.5 bg-slate-50 border-2 border-slate-200 rounded-xl focus:outline-none focus:border-[#8b1818] focus:bg-white transition cursor-pointer whitespace-nowrap">
-                        <option value="">All Sections</option>
-                        <template x-for="section in availableRegistrySections" :key="'registry-section-' + section">
-                            <option :value="section" x-text="section"></option>
-                        </template>
-                    </select>
-                    <select x-model="registryGrade" @change="registrySection = ''"
+                    <select x-model="registryGrade" @change="registrySection = ''; registryPage = 1"
                             class="text-xs font-bold px-3 py-2.5 bg-slate-50 border-2 border-slate-200 rounded-xl focus:outline-none focus:border-[#8b1818] focus:bg-white transition cursor-pointer whitespace-nowrap">
                         <option value="">All Grades</option>
                         <template x-for="grade in gradeLevels" :key="'registry-grade-' + grade">
                             <option :value="grade" x-text="'Grade ' + grade"></option>
+                        </template>
+                    </select>
+                    <select x-model="registrySection"
+                            @change="registrySection = availableRegistrySections.includes(registrySection) ? registrySection : ''; registryPage = 1"
+                            class="text-xs font-bold px-3 py-2.5 bg-slate-50 border-2 border-slate-200 rounded-xl focus:outline-none focus:border-[#8b1818] focus:bg-white transition cursor-pointer whitespace-nowrap">
+                        <option value="">All Sections</option>
+                        <template x-for="section in availableRegistrySections" :key="'registry-section-' + section">
+                            <option :value="section" x-text="section"></option>
                         </template>
                     </select>
                     <button @click="clearRegistryFilters()"
@@ -638,9 +618,9 @@
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-slate-100">
-                        <template x-for="(card, index) in filteredRegistry" :key="card.id">
+                        <template x-for="(card, index) in paginatedRegistry" :key="card.id">
                             <tr class="hover:bg-red-50/30 transition">
-                                <td class="py-3.5 px-5 text-xs font-black text-slate-400" x-text="index + 1"></td>
+                                <td class="py-3.5 px-5 text-xs font-black text-slate-400" x-text="registryStartIndex + index"></td>
                                 <td class="py-3.5 px-5">
                                     <span class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 border border-amber-200 text-amber-900 text-xs font-black rounded-xl">
                                         <i class="fa-solid fa-microchip text-amber-600 text-[10px]"></i>
@@ -695,12 +675,42 @@
                 </table>
             </div>
 
-            <div class="px-6 py-4 bg-slate-50/70 border-t border-slate-100 flex items-center justify-between">
-                <span class="text-xs font-bold text-slate-400">Showing <span x-text="filteredRegistry.length"></span> of <span x-text="registry.length"></span> records</span>
-                <button @click="openBindModal()" x-show="unboundStudents.length > 0"
-                        class="flex items-center gap-2 text-xs font-bold text-[#8b1818] hover:text-[#731414] transition cursor-pointer">
-                    <i class="fa-solid fa-plus-circle"></i> Bind New Card
-                </button>
+            <div class="px-6 py-4 bg-slate-50/70 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3">
+                <div class="flex items-center gap-3">
+                    <span class="text-xs font-bold text-slate-500">
+                        Showing <span class="font-extrabold text-slate-800" x-text="registryStartIndex"></span> to <span class="font-extrabold text-slate-800" x-text="registryEndIndex"></span> of <span class="font-extrabold text-slate-800" x-text="filteredRegistry.length"></span> records
+                    </span>
+                    <label class="flex items-center gap-2 text-xs font-bold text-slate-500 whitespace-nowrap">
+                        Rows per page
+                        <select x-model.number="registryPerPage" @change="registryPage = 1"
+                                class="px-2 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-black text-slate-700 focus:outline-none focus:border-[#8b1818] cursor-pointer">
+                            <option :value="10">10</option>
+                            <option :value="25">25</option>
+                            <option :value="50">50</option>
+                        </select>
+                    </label>
+                </div>
+                <div class="flex items-center gap-3">
+                    <template x-if="totalRegistryPages > 1">
+                        <div class="flex items-center gap-1">
+                            <button type="button" @click="if (registryPage > 1) registryPage--" :disabled="registryPage === 1"
+                                    class="w-8 h-8 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center text-xs text-slate-700 transition cursor-pointer">
+                                <i class="fa-solid fa-chevron-left text-[10px]"></i>
+                            </button>
+                            <span class="px-2 text-xs font-black text-slate-700">
+                                <span x-text="registryPage"></span> / <span x-text="totalRegistryPages"></span>
+                            </span>
+                            <button type="button" @click="if (registryPage < totalRegistryPages) registryPage++" :disabled="registryPage >= totalRegistryPages"
+                                    class="w-8 h-8 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center text-xs text-slate-700 transition cursor-pointer">
+                                <i class="fa-solid fa-chevron-right text-[10px]"></i>
+                            </button>
+                        </div>
+                    </template>
+                    <button @click="openBindModal()" x-show="unboundStudents.length > 0"
+                            class="flex items-center gap-2 text-xs font-bold text-[#8b1818] hover:text-[#731414] transition cursor-pointer">
+                        <i class="fa-solid fa-plus-circle"></i> Bind New Card
+                    </button>
+                </div>
             </div>
         </div>
 
@@ -721,7 +731,7 @@
             <div class="px-5 lg:px-6 py-4 border-b border-slate-100">
                 <div class="flex flex-wrap items-center gap-3">
                     <div class="relative w-full sm:w-72">
-                        <input type="text" x-model="unboundSearch"
+                        <input type="text" x-model="unboundSearch" @input="unboundPage = 1"
                                placeholder="Search name or LRN..."
                                class="w-full text-xs font-bold pl-9 pr-4 py-2.5 bg-slate-50 border-2 border-slate-200 rounded-xl focus:outline-none focus:border-[#8b1818] focus:bg-white transition">
                         <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
@@ -730,7 +740,7 @@
                             <i class="fa-solid fa-xmark text-xs"></i>
                         </button>
                     </div>
-                    <select x-model="unboundGrade" @change="unboundSection = ''"
+                    <select x-model="unboundGrade" @change="unboundSection = ''; unboundPage = 1"
                             class="text-xs font-bold px-3 py-2.5 bg-slate-50 border-2 border-slate-200 rounded-xl focus:outline-none focus:border-[#8b1818] focus:bg-white transition cursor-pointer whitespace-nowrap">
                         <option value="">All Grades</option>
                         <template x-for="grade in gradeLevels" :key="'unbound-grade-' + grade">
@@ -738,7 +748,7 @@
                         </template>
                     </select>
                     <select x-model="unboundSection"
-                            @change="unboundSection = availableUnboundSections.includes(unboundSection) ? unboundSection : ''"
+                            @change="unboundSection = availableUnboundSections.includes(unboundSection) ? unboundSection : ''; unboundPage = 1"
                             class="text-xs font-bold px-3 py-2.5 bg-slate-50 border-2 border-slate-200 rounded-xl focus:outline-none focus:border-[#8b1818] focus:bg-white transition cursor-pointer whitespace-nowrap">
                         <option value="">All Sections</option>
                         <template x-for="section in availableUnboundSections" :key="'unbound-section-' + section">
@@ -766,9 +776,9 @@
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-slate-100">
-                        <template x-for="(student, index) in filteredUnboundStudents" :key="student.id">
+                        <template x-for="(student, index) in paginatedUnboundStudents" :key="student.id">
                             <tr class="hover:bg-amber-50/30 transition">
-                                <td class="py-3.5 px-5 text-xs font-black text-slate-400" x-text="index + 1"></td>
+                                <td class="py-3.5 px-5 text-xs font-black text-slate-400" x-text="unboundStartIndex + index"></td>
                                 <td class="py-3.5 px-5">
                                     <div class="flex items-center gap-2.5">
                                         <div class="w-7 h-7 rounded-lg bg-amber-100 text-amber-600 flex items-center justify-center text-[10px] shrink-0">
@@ -803,6 +813,38 @@
                         </template>
                     </tbody>
                 </table>
+            </div>
+
+            <div class="px-6 py-4 bg-slate-50/70 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3">
+                <div class="flex items-center gap-3">
+                    <span class="text-xs font-bold text-slate-500">
+                        Showing <span class="font-extrabold text-slate-800" x-text="unboundStartIndex"></span> to <span class="font-extrabold text-slate-800" x-text="unboundEndIndex"></span> of <span class="font-extrabold text-slate-800" x-text="filteredUnboundStudents.length"></span> unbound students
+                    </span>
+                    <label class="flex items-center gap-2 text-xs font-bold text-slate-500 whitespace-nowrap">
+                        Rows per page
+                        <select x-model.number="unboundPerPage" @change="unboundPage = 1"
+                                class="px-2 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-black text-slate-700 focus:outline-none focus:border-[#8b1818] cursor-pointer">
+                            <option :value="10">10</option>
+                            <option :value="25">25</option>
+                            <option :value="50">50</option>
+                        </select>
+                    </label>
+                </div>
+                <template x-if="totalUnboundPages > 1">
+                    <div class="flex items-center gap-1">
+                        <button type="button" @click="if (unboundPage > 1) unboundPage--" :disabled="unboundPage === 1"
+                                class="w-8 h-8 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center text-xs text-slate-700 transition cursor-pointer">
+                            <i class="fa-solid fa-chevron-left text-[10px]"></i>
+                        </button>
+                        <span class="px-2 text-xs font-black text-slate-700">
+                            <span x-text="unboundPage"></span> / <span x-text="totalUnboundPages"></span>
+                        </span>
+                        <button type="button" @click="if (unboundPage < totalUnboundPages) unboundPage++" :disabled="unboundPage >= totalUnboundPages"
+                                class="w-8 h-8 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center text-xs text-slate-700 transition cursor-pointer">
+                            <i class="fa-solid fa-chevron-right text-[10px]"></i>
+                        </button>
+                    </div>
+                </template>
             </div>
         </div>
 
@@ -862,15 +904,19 @@ function nfcManager() {
         removeModal: { open: false, card: null, loading: false, error: '' },
         replaceModal: { open: false, card: null, step: 1, loading: false, error: '' },
 
-        // --- Registry filter ---
+        // --- Registry filter & pagination ---
         registrySearch: '',
         registrySection: '',
         registryGrade: '',
+        registryPage: 1,
+        registryPerPage: 10,
 
-        // --- Unbound quick-view filter ---
+        // --- Unbound quick-view filter & pagination ---
         unboundSearch: '',
         unboundSection: '',
         unboundGrade: '',
+        unboundPage: 1,
+        unboundPerPage: 10,
 
         // --- COMPUTED ---
         get gradeLevels() {
@@ -922,6 +968,24 @@ function nfcManager() {
             return list;
         },
 
+        get paginatedUnboundStudents() {
+            const start = (this.unboundPage - 1) * this.unboundPerPage;
+            return this.filteredUnboundStudents.slice(start, start + this.unboundPerPage);
+        },
+
+        get totalUnboundPages() {
+            return Math.ceil(this.filteredUnboundStudents.length / this.unboundPerPage) || 1;
+        },
+
+        get unboundStartIndex() {
+            if (this.filteredUnboundStudents.length === 0) return 0;
+            return (this.unboundPage - 1) * this.unboundPerPage + 1;
+        },
+
+        get unboundEndIndex() {
+            return Math.min(this.unboundPage * this.unboundPerPage, this.filteredUnboundStudents.length);
+        },
+
         get unboundStudentsFiltered() {
             let list = this.unboundStudents;
             if (this.modal.sectionFilter) {
@@ -953,16 +1017,36 @@ function nfcManager() {
             return list;
         },
 
+        get paginatedRegistry() {
+            const start = (this.registryPage - 1) * this.registryPerPage;
+            return this.filteredRegistry.slice(start, start + this.registryPerPage);
+        },
+
+        get totalRegistryPages() {
+            return Math.ceil(this.filteredRegistry.length / this.registryPerPage) || 1;
+        },
+
+        get registryStartIndex() {
+            if (this.filteredRegistry.length === 0) return 0;
+            return (this.registryPage - 1) * this.registryPerPage + 1;
+        },
+
+        get registryEndIndex() {
+            return Math.min(this.registryPage * this.registryPerPage, this.filteredRegistry.length);
+        },
+
         clearRegistryFilters() {
             this.registrySearch = '';
             this.registrySection = '';
             this.registryGrade = '';
+            this.registryPage = 1;
         },
 
         clearUnboundFilters() {
             this.unboundSearch = '';
             this.unboundSection = '';
             this.unboundGrade = '';
+            this.unboundPage = 1;
         },
 
         // --- INIT ---

@@ -73,6 +73,17 @@ class AdminScheduleController extends Controller
             });
         }
 
+        $academicSections = class_exists(AcademicSection::class) && Schema::hasTable('academic_sections')
+            ? AcademicSection::orderBy('grade_level')->orderBy('section_name')->get()
+            : collect();
+
+        $activeSchoolYear = '2025-2026';
+        if (Schema::hasTable('academic_periods')) {
+            $activeSchoolYear = DB::table('academic_periods')->where('is_active', 1)->value('school_year')
+                ?? DB::table('academic_periods')->value('school_year')
+                ?? '2025-2026';
+        }
+
         $allSchedules = (clone $query)->get();
         $schedules = $query->paginate(15);
 
@@ -95,6 +106,8 @@ class AdminScheduleController extends Controller
             'schedules',
             'allSchedules',
             'teachers',
+            'academicSections',
+            'activeSchoolYear',
             'totalSections',
             'totalSubjects',
             'assignedFacultyCount',

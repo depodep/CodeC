@@ -395,6 +395,7 @@ BAT;
 
         if ($uid) {
             Cache::put('latest_nfc_tap', strtoupper(trim($uid)), 30);
+            Cache::put('latest_nfc_tap_token', (string) \Illuminate\Support\Str::uuid(), 30);
         }
 
         return response()->json([
@@ -407,16 +408,14 @@ BAT;
     // API: Receive a liveness signal from the Python NFC bridge.
     public function heartbeat()
     {
+        Cache::forever('nfc_bridge_seen', true);
+
         if (request()->boolean('reader_connected')) {
-            Cache::put('nfc_bridge_heartbeat', now()->timestamp, 30);
+            Cache::put('nfc_bridge_heartbeat', now()->timestamp, 8);
             Cache::forget('nfc_bridge_missing_reader');
         } else {
-            $missingReports = (int) Cache::get('nfc_bridge_missing_reader', 0) + 1;
-            Cache::put('nfc_bridge_missing_reader', $missingReports, 30);
-
-            if ($missingReports >= 3) {
-                Cache::forget('nfc_bridge_heartbeat');
-            }
+            Cache::forget('nfc_bridge_heartbeat');
+            Cache::forget('nfc_bridge_missing_reader');
         }
 
         return response()->json(['success' => true]);
@@ -426,11 +425,12 @@ BAT;
     public function getLatestTap()
     {
         $uid = Cache::get('latest_nfc_tap', '');
+        $tapToken = Cache::get('latest_nfc_tap_token', '');
         $heartbeat = Cache::get('nfc_bridge_heartbeat');
-        $bridgeOnline = is_numeric($heartbeat) && now()->timestamp - (int) $heartbeat <= 15;
+        $bridgeOnline = is_numeric($heartbeat) && now()->timestamp - (int) $heartbeat <= 5;
         $bridgeStatus = $bridgeOnline
             ? 'online'
-            : ($heartbeat === null ? 'waiting' : 'disconnected');
+            : (Cache::get('nfc_bridge_seen', false) ? 'disconnected' : 'waiting');
         $binding = $uid
             ? NfcCard::with('user')
                 ->where('status', 'active')
@@ -440,6 +440,7 @@ BAT;
 
         return response()->json([
             'card_uid' => $uid,
+            'tap_token' => $tapToken,
             'bridge_online' => $bridgeOnline,
             'bridge_status' => $bridgeStatus,
             'is_bound' => (bool) $binding,

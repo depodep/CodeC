@@ -58,9 +58,32 @@ class AdminSchoolYearController extends Controller
     public function storePeriod(Request $request)
     {
         $validated = $request->validate([
-            'start_date' => ['required', 'date'],
-            'end_date' => ['required', 'date', 'after_or_equal:start_date'],
+            'start_date'     => ['required', 'date'],
+            'end_date'       => ['required', 'date', 'after_or_equal:start_date'],
+            'admin_password' => ['required', 'string'],
+        ], [
+            'admin_password.required' => 'Admin password is required to add a school year.',
         ]);
+
+        // Verify admin password
+        $user = auth()->user();
+        $isPasswordValid = false;
+        if ($user && $user->password) {
+            if ($request->admin_password === $user->password) {
+                $isPasswordValid = true;
+            } else {
+                try {
+                    if (\Illuminate\Support\Facades\Hash::check($request->admin_password, $user->password)) {
+                        $isPasswordValid = true;
+                    }
+                } catch (\Exception $e) {
+                    $isPasswordValid = false;
+                }
+            }
+        }
+        if (!$isPasswordValid) {
+            return back()->with('error', 'Incorrect admin password. School year was not added.');
+        }
 
         $startYear = (int) date('Y', strtotime($validated['start_date']));
         $endYear = (int) date('Y', strtotime($validated['end_date']));

@@ -89,7 +89,6 @@
                 <div>
                     <p class="text-[10px] font-black text-slate-400 uppercase tracking-wider">Total Enrolled</p>
                     <h3 class="text-2xl lg:text-3xl font-black text-slate-900 tracking-tight mt-1">{{ number_format($totalStudents) }}</h3>
-                    <span class="text-[11px] font-bold text-slate-500 mt-0.5 block">Across all assignments</span>
                 </div>
                 <div class="w-12 h-12 rounded-2xl bg-blue-50 border-2 border-blue-200 text-blue-700 flex items-center justify-center text-xl shrink-0 shadow-xs">
                     <i class="fa-solid fa-graduation-cap"></i>
@@ -101,7 +100,6 @@
                 <div>
                     <p class="text-[10px] font-black text-slate-400 uppercase tracking-wider">Advisory Students</p>
                     <h3 class="text-2xl lg:text-3xl font-black text-slate-900 tracking-tight mt-1">{{ number_format($advisoryCount) }}</h3>
-                    <span class="text-[11px] font-bold text-amber-700 mt-0.5 block">Editable records</span>
                 </div>
                 <div class="w-12 h-12 rounded-2xl bg-amber-50 border-2 border-amber-200 text-amber-700 flex items-center justify-center text-xl shrink-0 shadow-xs">
                     <i class="fa-solid fa-users-viewfinder"></i>
@@ -113,7 +111,6 @@
                 <div>
                     <p class="text-[10px] font-black text-slate-400 uppercase tracking-wider">Subject Load</p>
                     <h3 class="text-2xl lg:text-3xl font-black text-slate-900 tracking-tight mt-1">{{ number_format($subjectCount) }}</h3>
-                    <span class="text-[11px] font-bold text-slate-500 mt-0.5 block">Course timetable</span>
                 </div>
                 <div class="w-12 h-12 rounded-2xl bg-rose-50 border-2 border-rose-200 text-[#590d0d] flex items-center justify-center text-xl shrink-0 shadow-xs">
                     <i class="fa-solid fa-book-open"></i>
@@ -243,16 +240,18 @@
                                 <th class="p-4">Academic Placement</th>
                                 <th class="p-4">Contact Details</th>
                                 <th class="p-4 text-center">NFC</th>
-                                <th class="p-4 text-center">Attendance</th>
-                                <th class="p-4 text-center">Evaluation</th>
+                                <th class="p-4 text-center">Date</th>
+                                <th class="p-4 text-center" x-text="tab.type === 'subject' ? 'Scanned Time' : 'Time In'"></th>
+                                <th class="p-4 text-center" x-show="tab.type === 'advisory'">Time Out</th>
+                                <th class="p-4 text-center">Status</th>
                                 <th class="p-4 text-center">Actions</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-slate-100 text-slate-700 font-medium">
-                            <template x-for="(student, index) in filteredStudents" :key="student.id">
+                            <template x-for="(student, index) in pagedStudents" :key="student.id">
                                 <tr class="hover:bg-amber-50/50 transition duration-150">
                                     <!-- Index -->
-                                    <td class="p-4 text-center text-slate-400 font-bold" x-text="index + 1"></td>
+                                    <td class="p-4 text-center text-slate-400 font-bold" x-text="pageStart + index + 1"></td>
 
                                     <!-- Student Name & LRN -->
                                     <td class="p-4">
@@ -300,21 +299,15 @@
                                         </template>
                                     </td>
 
-                                    <!-- Attendance Status -->
+                                    <!-- Attendance Record -->
+                                    <td class="p-4 text-center text-xs font-bold text-slate-600" x-text="student.attendance_date || '--'"></td>
+                                    <td class="p-4 text-center text-xs font-bold text-slate-600" x-text="student.attendance_time_in || '--'"></td>
+                                    <td class="p-4 text-center text-xs font-bold text-slate-600" x-show="tab.type === 'advisory'" x-text="student.attendance_time_out || '--'"></td>
                                     <td class="p-4 text-center">
                                         <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider"
                                             :class="student.attendance_status === 'Present' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-rose-50 text-rose-700 border border-rose-200'">
                                             <i class="fa-solid" :class="student.attendance_status === 'Present' ? 'fa-circle-check' : 'fa-circle-xmark'"></i>
                                             <span x-text="student.attendance_status || 'Absent'"></span>
-                                        </span>
-                                    </td>
-
-                                    <!-- Evaluation Status -->
-                                    <td class="p-4 text-center">
-                                        <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider"
-                                            :class="student.evaluation_status === 'Done' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-slate-100 text-slate-600 border border-slate-200'">
-                                            <i class="fa-solid" :class="student.evaluation_status === 'Done' ? 'fa-check' : 'fa-minus'"></i>
-                                            <span x-text="student.evaluation_status || 'Not Active'"></span>
                                         </span>
                                     </td>
 
@@ -356,6 +349,24 @@
                             </tr>
                         </tbody>
                     </table>
+                    <div class="px-6 py-4 border-t border-slate-100 bg-slate-50/60 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                        <div class="flex items-center gap-3 text-xs text-slate-500 font-bold">
+                            <label class="text-slate-600">Rows per page</label>
+                            <select x-model.number="perPage" @change="currentPage = 1" class="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-bold text-slate-700 outline-none">
+                                <option :value="10">10</option>
+                                <option :value="15">15</option>
+                                <option :value="30">30</option>
+                            </select>
+                            <span>Showing <span x-text="filteredStudents.length ? pageStart + 1 : 0"></span>-<span x-text="Math.min(pageStart + perPage, filteredStudents.length)"></span> of <span x-text="filteredStudents.length"></span></span>
+                        </div>
+                        <div class="flex items-center gap-1">
+                            <button type="button" @click="currentPage = Math.max(1, currentPage - 1)" :disabled="currentPage === 1" class="px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-bold disabled:bg-slate-100 disabled:text-slate-400 text-slate-600 bg-white cursor-pointer disabled:cursor-not-allowed"><i class="fa-solid fa-chevron-left"></i></button>
+                            <template x-for="page in pageNumbers" :key="page">
+                                <button type="button" @click="currentPage = page" class="px-3 py-1.5 rounded-lg border text-xs font-bold cursor-pointer" :class="currentPage === page ? 'bg-[#590d0d] text-amber-300 border-[#590d0d]' : 'bg-white text-slate-600 border-slate-200'" x-text="page"></button>
+                            </template>
+                            <button type="button" @click="currentPage = Math.min(totalPages, currentPage + 1)" :disabled="currentPage === totalPages || totalPages === 0" class="px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-bold disabled:bg-slate-100 disabled:text-slate-400 text-slate-600 bg-white cursor-pointer disabled:cursor-not-allowed"><i class="fa-solid fa-chevron-right"></i></button>
+                        </div>
+                    </div>
                 </section>
             </template>
         </div>
@@ -605,6 +616,8 @@ function studentPage() {
         'label' => $tab['label'],
         'grade' => $tab['grade'],
         'section' => $tab['section'],
+        'section_id' => $tab['section_id'] ?? null,
+        'schedule_id' => $tab['schedule_id'] ?? null,
         'students' => $tab['students']->map(fn($s) => [
             'id' => $s->id,
             'first_name' => $s->first_name,
@@ -619,6 +632,9 @@ function studentPage() {
             'strand' => $s->strand,
             'section' => $s->section,
             'attendance_status' => $s->attendance_status ?? 'Absent',
+            'attendance_date' => $s->attendance_date,
+            'attendance_time_in' => $s->attendance_time_in,
+            'attendance_time_out' => $s->attendance_time_out,
             'evaluation_status' => $s->evaluation_status ?? 'Not Active',
             'parent_name' => $s->parent_name,
             'parent_relationship' => $s->parent_relationship,
@@ -638,6 +654,25 @@ function studentPage() {
         selected: null,
         form: {},
         filteredStudents: [],
+        currentPage: 1,
+        perPage: 10,
+
+        get totalPages() {
+            return Math.ceil(this.filteredStudents.length / this.perPage);
+        },
+
+        get pageStart() {
+            return Math.min((this.currentPage - 1) * this.perPage, Math.max(0, this.filteredStudents.length - 1));
+        },
+
+        get pagedStudents() {
+            const start = (this.currentPage - 1) * this.perPage;
+            return this.filteredStudents.slice(start, start + this.perPage);
+        },
+
+        get pageNumbers() {
+            return Array.from({ length: this.totalPages }, (_, index) => index + 1).slice(0, 7);
+        },
 
         init() {
             this.applyFilter();
@@ -645,10 +680,12 @@ function studentPage() {
 
         setActiveTab(tabId) {
             this.activeTab = tabId;
+            this.currentPage = 1;
             this.applyFilter();
         },
 
         applyFilter() {
+            this.currentPage = 1;
             const currentTab = this.tabs.find(t => t.id === this.activeTab);
             if (!currentTab) {
                 this.filteredStudents = [];

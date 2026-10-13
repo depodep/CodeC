@@ -138,8 +138,8 @@
             </div>
 
             <div class="pt-3.5 border-t border-slate-100 flex items-center justify-end text-xs text-slate-600 font-bold">
-                <a href="{{ route('admin.evaluations.monitoring') }}" class="text-blue-600 hover:underline inline-flex items-center gap-1.5">
-                    <span>View Details</span>
+                <a href="{{ route('admin.evaluations.periods') }}" class="text-[#8b1818] hover:underline inline-flex items-center gap-1.5 font-black">
+                    <span>Manage Evaluations</span>
                     <i class="fa-solid fa-arrow-right text-[10px]"></i>
                 </a>
             </div>

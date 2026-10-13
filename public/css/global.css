@@ -60,4 +60,11 @@ html.sidebar-collapsed aside#app-sidebar {
 }
 html.sidebar-collapsed main#app-main {
     padding-left: 5rem !important;
+}
+
+/* Ensure sidebar and navigation links are never underlined by external CSS resets */
+aside a,
+#app-sidebar a,
+nav a {
+    text-decoration: none !important;
 }

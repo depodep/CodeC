@@ -4,15 +4,91 @@ namespace App\Http\Controllers;
 
 use App\Models\User;
 use App\Models\NfcCard;
+use App\Models\ClassSchedule;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Hash;
 
 class NfcAttendanceController extends Controller
 {
+    public function attendanceStart()
+    {
+        if (session('attendance_session.expires_at', 0) >= now()->timestamp) {
+            return redirect()->route('attendance.live');
+        }
+
+        return view('attendance.start');
+    }
+
+    public function startAttendance(Request $request)
+    {
+        $request->validate(['password' => ['required', 'string']]);
+        $user = Auth::user();
+        $stored = (string) $user->password;
+        $info = password_get_info($stored);
+        $valid = ($info['algo'] ?? 0) !== 0
+            ? Hash::check($request->password, $stored)
+            : hash_equals($stored, $request->password);
+
+        if (!$valid) {
+            return back()->withErrors(['password' => 'The attendance password is incorrect.']);
+        }
+
+        $request->session()->put('attendance_session', [
+            'started_at' => now()->timestamp,
+            'expires_at' => now()->addHours(8)->timestamp,
+            'operator_id' => $user->id,
+        ]);
+
+        return redirect()->route('attendance.live');
+    }
+
+    public function endAttendance(Request $request)
+    {
+        $request->session()->forget('attendance_session');
+        return redirect()->route('attendance.start');
+    }
+
+    public function scanPage()
+    {
+        if (session('attendance_session.expires_at', 0) < now()->timestamp) {
+            return redirect()->route('attendance.start');
+        }
+        $user = Auth::user();
+        $isAdmin = $this->isAdmin($user);
+        $allSchedules = ClassSchedule::with(['academicSection', 'subjectRecord'])
+            ->when(!$isAdmin, fn ($query) => $query->where('teacher_id', $user->id))
+            ->orderBy('day')
+            ->orderBy('start_time')
+            ->get();
+        $currentSchedules = $allSchedules
+            ->filter(fn (ClassSchedule $schedule) => $this->scheduleIsOpen($schedule, false))
+            ->values();
+        $schedules = $isAdmin ? $allSchedules : $currentSchedules;
+        $currentSchedule = $currentSchedules->first();
+        $advisorySections = \App\Models\AcademicSection::with('students')
+            ->when(!$isAdmin, fn ($query) => $query->where('advisor_id', $user->id))
+            ->orderBy('section_name')
+            ->get();
+        $defaultAttendanceType = $isAdmin
+            ? ($currentSchedule ? 'subject' : ($advisorySections->isNotEmpty() ? 'advisory' : 'subject'))
+            : ($advisorySections->isNotEmpty() ? 'advisory' : 'subject');
+        $defaultSection = $advisorySections->first();
+
+        return view('teacher.kiosk', compact(
+            'schedules',
+            'currentSchedule',
+            'advisorySections',
+            'defaultAttendanceType',
+            'defaultSection',
+            'isAdmin'
+        ));
+    }
+
     /**
      * Display the Teacher Attendance Monitor Dashboard with Real Data
      */
@@ -117,6 +193,38 @@ public function attendanceIndex(Request $request)
      * Handles NFC Tap from hardware reader or Python bridge in Real-Time
      */
     public function handleTap(Request $request) {
+        $request->validate([
+            'tag_id' => ['required', 'string', 'max:100'],
+            'attendance_type' => ['required', 'in:advisory,subject'],
+            'schedule_id' => ['nullable', 'integer', 'exists:class_schedules,id'],
+            'advisory_section_id' => ['nullable', 'integer', 'exists:academic_sections,id'],
+        ]);
+
+        $operator = Auth::user();
+        if (session('attendance_session.operator_id') !== $operator->id ||
+            session('attendance_session.expires_at', 0) < now()->timestamp) {
+            return response()->json(['success' => false, 'message' => 'Attendance session expired. Please re-authenticate.'], 401);
+        }
+        $attendanceType = $request->string('attendance_type')->toString();
+        if ($attendanceType === 'subject' && !$request->filled('schedule_id')) {
+            return response()->json(['success' => false, 'message' => 'Select a subject schedule first.'], 422);
+        }
+        if ($attendanceType === 'advisory' && !$request->filled('advisory_section_id')) {
+            return response()->json(['success' => false, 'message' => 'Select an advisory section first.'], 422);
+        }
+        $schedule = $attendanceType === 'subject'
+            ? ClassSchedule::with(['academicSection', 'subjectRecord'])->findOrFail($request->integer('schedule_id'))
+            : null;
+        $section = $attendanceType === 'advisory'
+            ? \App\Models\AcademicSection::findOrFail($request->integer('advisory_section_id'))
+            : null;
+        if ($attendanceType === 'subject' && !$this->isAdmin($operator) && (int) $schedule->teacher_id !== (int) $operator->id) {
+            return response()->json(['success' => false, 'message' => 'You may only record attendance for your assigned subject.'], 403);
+        }
+        if ($attendanceType === 'advisory' && !$this->isAdmin($operator) && (int) $section->advisor_id !== (int) $operator->id) {
+            return response()->json(['success' => false, 'message' => 'You may only record attendance for your assigned advisory section.'], 403);
+        }
+
         if($request->has('uid')) {
             Cache::put('latest_nfc_uid', $request->uid, now()->addSeconds(10));
         }
@@ -130,23 +238,8 @@ public function attendanceIndex(Request $request)
             ], 400);
         }
 
-        // 1. Cache latest tap for Kiosk UI pollers
-        @file_put_contents(storage_path('latest_nfc.txt'), $tagId);
-        Cache::put('latest_nfc_tap', $tagId, 300);
-
-        // 2. Locate Student by NFC Tag
-        $user = null;
-        if (Schema::hasTable('nfc_cards')) {
-            $card = DB::table('nfc_cards')->where('tag_id', $tagId)->first();
-            if ($card) {
-                $user = User::find($card->user_id);
-            }
-        }
-
-        // Fallback check on users table if nfc_tag_id column exists
-        if (!$user && Schema::hasColumn('users', 'nfc_tag_id')) {
-            $user = User::where('nfc_tag_id', $tagId)->first();
-        }
+        $card = NfcCard::where('tag_id', $tagId)->where('status', 'active')->first();
+        $user = $card?->user;
 
         if (!$user) {
             return response()->json([
@@ -157,67 +250,153 @@ public function attendanceIndex(Request $request)
             ], 404);
         }
 
-        // Resolve Academic Details
-        $trackName = match ((int)($user->track ?? $user->strand ?? 0)) {
-            1 => 'Academic Track',
-            2 => 'Technical-Professional',
-            default => 'General Track',
+        $strandValue = $user->strand ?? $user->track ?? null;
+        $trackName   = match (strtoupper((string) $strandValue)) {
+            'STEM', 'ABM', 'HUMSS', 'GAS', 'TVL', 'SPORTS', 'ARTS'
+                => 'Academic Track',
+            default => $strandValue ?: 'General Track',
         };
-
-        $sectionName = match ((int)($user->section ?? 0)) {
-            1 => 'Amber',
-            2 => 'Crystal',
-            3 => 'Pearl',
-            4 => 'Turquoise',
-            default => 'Unassigned Section',
-        };
-
+        $sectionName = !empty($user->section) ? $user->section : 'Unassigned Section';
         $gradeLevelText = !empty($user->grade_level) ? 'Grade ' . $user->grade_level : 'Grade 11';
+        $studentPayload = [
+            'id' => $user->id,
+            'name' => "{$user->first_name} {$user->last_name}",
+            'id_number' => $user->id_number ?? 'N/A',
+            'grade_level' => $gradeLevelText,
+            'track' => $trackName,
+            'strand' => $user->strand ?? 'STEM',
+            'section' => $sectionName,
+            'avatar' => !empty($user->photo) ? asset('storage/' . $user->photo) : null,
+        ];
 
-        // 3. Resolve Column Names dynamically
-        $logCols    = Schema::hasTable('attendance_logs') ? Schema::getColumnListing('attendance_logs') : [];
-        $studentKey = in_array('user_id', $logCols) ? 'user_id' : (in_array('student_id', $logCols) ? 'student_id' : 'user_id');
-        $dateCol    = in_array('attendance_date', $logCols) ? 'attendance_date' : (in_array('date', $logCols) ? 'date' : 'created_at');
+        $studentInSection = $attendanceType === 'advisory'
+            ? $user->sections()->whereKey($section->id)->exists()
+            : ($schedule->section_id
+                ? $user->sections()->whereKey($schedule->section_id)->exists()
+                : strcasecmp(trim((string) $user->section), trim((string) ($schedule->section ?: $schedule->academicSection?->section_name))) === 0);
+        if (!$studentInSection) {
+            $selectedSectionName = $attendanceType === 'advisory'
+                ? $section->section_name
+                : ($schedule->academicSection?->section_name ?? $schedule->section ?? 'Selected class');
+
+            return response()->json([
+                'success' => false,
+                'error_code' => 'STUDENT_NOT_IN_CLASS',
+                'is_registered' => true,
+                'student' => $studentPayload,
+                'selected_section' => $selectedSectionName,
+                'message' => "{$studentPayload['name']} is not assigned to {$selectedSectionName}. Attendance was not recorded.",
+            ], 422);
+        }
 
         $today   = Carbon::today()->toDateString();
         $nowTime = Carbon::now()->format('H:i:s');
-
-        // 4. Check for today's existing log for this student
         $existingLog = DB::table('attendance_logs')
-            ->where($studentKey, $user->id)
-            ->whereDate($dateCol, $today)
+            ->where('user_id', $user->id)
+            ->where('attendance_type', $attendanceType)
+            ->when($attendanceType === 'subject', fn ($query) => $query->where('class_schedule_id', $schedule->id))
+            ->when($attendanceType === 'advisory', fn ($query) => $query->where('advisory_section_id', $section->id))
+            ->whereDate('attendance_date', $today)
             ->first();
-
-        // 8:00 AM Morning Cutoff
-        $cutoffTime = Carbon::createFromTime(8, 0, 0);
-        $status     = Carbon::now()->gt($cutoffTime) ? 'LATE' : 'ON-TIME';
+        if ($attendanceType === 'subject' && !$this->isAdmin($operator) && !$this->scheduleIsOpen($schedule, false)) {
+            $selectedSectionName = $schedule->academicSection?->section_name ?? $schedule->section ?? 'Selected class';
+            return response()->json([
+                'success' => false,
+                'error_code' => 'NOT_IN_SCHEDULE',
+                'is_registered' => true,
+                'student' => $studentPayload,
+                'selected_section' => $selectedSectionName,
+                'message' => "{$studentPayload['name']} is not in the active schedule window. Attendance was not recorded.",
+            ], 422);
+        }
+        if ($attendanceType === 'subject' && !$this->scheduleIsOpen($schedule, (bool) $existingLog)) {
+            $window = $existingLog ? 'the scheduled end time' : 'the scheduled start time';
+            return response()->json([
+                'success' => false,
+                'error_code' => 'NOT_IN_SCHEDULE',
+                'is_registered' => true,
+                'student' => $studentPayload,
+                'selected_section' => $schedule->academicSection?->section_name ?? $schedule->section ?? 'Selected class',
+                'message' => "{$studentPayload['name']} is not in the active schedule window. Scan within 30 minutes before or after {$window}.",
+            ], 422);
+        }
+        $status = $attendanceType === 'advisory'
+            ? 'ON-TIME'
+            : (Carbon::now()->gt(Carbon::parse($today . ' ' . $schedule->start_time)) ? 'LATE' : 'ON-TIME');
 
         if (!$existingLog) {
-            // --- FIRST TAP TODAY: TIME IN ---
             $insertData = [
-                $studentKey  => $user->id,
+                'user_id' => $user->id,
+                'class_schedule_id' => $attendanceType === 'subject' ? $schedule->id : null,
+                'nfc_card_id' => $card->id,
+                'attendance_type' => $attendanceType,
+                'advisory_section_id' => $attendanceType === 'advisory' ? $section->id : null,
+                'recorded_by' => $operator->id,
+                'attendance_date' => $today,
+                'time_in' => $nowTime,
+                'status' => $status,
                 'created_at' => now(),
                 'updated_at' => now(),
             ];
-
-            if (in_array('academic_period_id', $logCols) && Schema::hasTable('academic_periods')) {
-                $insertData['academic_period_id'] = DB::table('academic_periods')
-                    ->where('is_active', 1)
-                    ->value('id');
+            if (Schema::hasTable('academic_periods')) {
+                $insertData['academic_period_id'] = DB::table('academic_periods')->where('is_active', 1)->value('id');
             }
-
-            if (in_array('attendance_date', $logCols)) $insertData['attendance_date'] = $today;
-            if (in_array('date', $logCols))            $insertData['date'] = $today;
-            if (in_array('time_in', $logCols))         $insertData['time_in'] = $nowTime;
-            if (in_array('status', $logCols))          $insertData['status'] = $status;
 
             DB::table('attendance_logs')->insert($insertData);
 
             $actionType    = 'TIME IN';
             $displayStatus = $status;
             $message       = "TIME IN recorded for {$user->first_name} {$user->last_name} ({$displayStatus})";
+
+            // Hook Attendance Auto-Trigger SMS
+            try {
+                app(\App\Services\AndroidSmsGatewayService::class)->sendAttendanceNotification($user, 'TIME IN', Carbon::now()->format('g:i A'));
+            } catch (\Throwable $smsEx) {
+                \Illuminate\Support\Facades\Log::warning("Attendance SMS Notification failed: " . $smsEx->getMessage());
+            }
         } else {
-            // --- SUBSEQUENT TAP: DEBOUNCE OR TIME OUT ---
+            if ($attendanceType === 'subject') {
+                return response()->json([
+                    'success' => true,
+                    'is_registered' => true,
+                    'action' => 'ALREADY_LOGGED',
+                    'status' => $existingLog->status ?? 'ON-TIME',
+                    'time' => Carbon::parse($existingLog->time_in)->format('g:i A'),
+                    'time_in' => $existingLog->time_in
+                        ? Carbon::parse($existingLog->time_in)->format('g:i A')
+                        : null,
+                    'time_out' => $existingLog->time_out
+                        ? Carbon::parse($existingLog->time_out)->format('g:i A')
+                        : null,
+                    'student' => [
+                        'id' => $user->id,
+                        'name' => "{$user->first_name} {$user->last_name}",
+                        'id_number' => $user->id_number ?? 'N/A',
+                        'grade_level' => $gradeLevelText,
+                        'track' => $trackName,
+                        'strand' => $user->strand ?? 'STEM',
+                        'section' => $sectionName,
+                        'avatar' => !empty($user->photo) ? asset('storage/' . $user->photo) : null,
+                    ],
+                    'message' => 'Subject attendance already recorded.',
+                ]);
+            }
+            if (!empty($existingLog->time_out)) {
+                return response()->json([
+                    'success'       => true,
+                    'is_registered' => true,
+                    'action'        => 'ALREADY_COMPLETED',
+                    'status'        => $existingLog->status ?? 'ON-TIME',
+                    'time'          => Carbon::parse($existingLog->time_out)->format('g:i A'),
+                    'time_in'       => $existingLog->time_in
+                        ? Carbon::parse($existingLog->time_in)->format('g:i A')
+                        : null,
+                    'time_out'      => Carbon::parse($existingLog->time_out)->format('g:i A'),
+                    'student'       => $studentPayload,
+                    'message'       => "{$studentPayload['name']} already completed attendance. Time out was recorded at "
+                        . Carbon::parse($existingLog->time_out)->format('g:i A') . '.',
+                ]);
+            }
             $lastActionTime = Carbon::parse($existingLog->updated_at ?? $existingLog->created_at);
 
             // 60-Second Debounce: ignore accidental double taps while holding card on reader
@@ -242,17 +421,20 @@ public function attendanceIndex(Request $request)
                 ]);
             }
 
-            // Record TIME OUT while preserving original morning status
-            $updateData = ['updated_at' => now()];
-            if (in_array('time_out', $logCols)) {
-                $updateData['time_out'] = $nowTime;
-            }
+            $updateData = ['updated_at' => now(), 'time_out' => $nowTime];
 
             DB::table('attendance_logs')->where('id', $existingLog->id)->update($updateData);
 
             $actionType    = 'TIME OUT';
             $displayStatus = $existingLog->status ?? 'ON-TIME';
             $message       = "TIME OUT recorded for {$user->first_name} {$user->last_name}";
+
+            // Hook Attendance Auto-Trigger SMS
+            try {
+                app(\App\Services\AndroidSmsGatewayService::class)->sendAttendanceNotification($user, 'TIME OUT', Carbon::now()->format('g:i A'));
+            } catch (\Throwable $smsEx) {
+                \Illuminate\Support\Facades\Log::warning("Attendance SMS Notification failed: " . $smsEx->getMessage());
+            }
         }
 
         return response()->json([
@@ -273,5 +455,44 @@ public function attendanceIndex(Request $request)
             ],
             'message'       => $message,
         ]);
+    }
+
+    /**
+     * Alias for storeTap endpoint
+     */
+    public function storeTap(Request $request)
+    {
+        if (!Auth::check()) {
+            return response()->json(['success' => false, 'message' => 'Authentication is required to record attendance.'], 401);
+        }
+        return $this->handleTap($request);
+    }
+
+    private function isAdmin(User $user): bool
+    {
+        return (int) $user->role_id === 1 || strtolower((string) (is_object($user->role) ? $user->role->name : $user->role)) === 'admin';
+    }
+
+    private function scheduleIsOpen(ClassSchedule $schedule, bool $timeOut): bool
+    {
+        $now = Carbon::now();
+        if (!$this->scheduleMatchesToday($schedule, $now)) {
+            return false;
+        }
+
+        $boundary = $timeOut ? $schedule->end_time : $schedule->start_time;
+        $start = Carbon::parse($now->toDateString() . ' ' . $boundary)->subMinutes(30);
+        $end = Carbon::parse($now->toDateString() . ' ' . $boundary)->addMinutes(30);
+        return $now->betweenIncluded($start, $end);
+    }
+
+    private function scheduleMatchesToday(ClassSchedule $schedule, Carbon $now): bool
+    {
+        $day = strtolower(trim((string) $schedule->day));
+        return $day === '' || in_array($day, [
+            strtolower($now->format('l')),
+            strtolower($now->format('D')),
+            (string) $now->dayOfWeekIso,
+        ], true);
     }
 }

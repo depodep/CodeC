@@ -28,7 +28,7 @@
 
     <!-- Profile Edit Form -->
     <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        <form action="{{ route('teacher.profile.update') }}" method="POST" enctype="multipart/form-data">
+        <form action="{{ auth()->user()->role_id == 3 ? route('student.profile.update') : (Route::has('teacher.profile.update') && auth()->user()->role_id == 2 ? route('teacher.profile.update') : route('profile.update')) }}" method="POST" enctype="multipart/form-data">
             @csrf
             @method('PUT')
 
